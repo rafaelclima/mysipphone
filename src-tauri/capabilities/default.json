@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "Default capability granting core permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:default",
+    "core:app:default",
+    "core:window:default",
+    "core:webview:default"
+  ]
+}
