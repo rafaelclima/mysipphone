@@ -14,7 +14,10 @@ impl AppState {
         audio_cmd_tx: AudioCommandSender,
         call_event_tx: CallEventSender,
     ) -> Self {
-        let database = persistence::Database::open_in_memory().ok();
+        let db_path = std::env::temp_dir().join("mysipphone.db");
+        let db_path_str = db_path.to_string_lossy().to_string();
+        let database = persistence::Database::open(&db_path_str).ok();
+        tracing::info!("Database path: {}", db_path_str);
         Self {
             sip_cmd_tx,
             audio_cmd_tx,

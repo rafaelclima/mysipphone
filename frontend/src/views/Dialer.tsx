@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Box, Button, Typography, IconButton } from "@mui/material";
 import CallIcon from "@mui/icons-material/Call";
 import BackspaceIcon from "@mui/icons-material/Backspace";
-import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { useTranslation } from "../i18n";
 
 const DIAL_PAD = [
   { digit: "1", letters: "" },
@@ -21,8 +21,10 @@ const DIAL_PAD = [
 ];
 
 function Dialer() {
+  const { t } = useTranslation();
   const [number, setNumber] = useState("");
-  const navigate = useNavigate();
+  const numberRef = useRef(number);
+  numberRef.current = number;
 
   const handleDial = (digit: string) => {
     setNumber((prev) => prev + digit);
@@ -36,107 +38,136 @@ function Dialer() {
     if (!number) return;
     try {
       await invoke("make_call", { uri: number });
-      navigate(`/call/new?uri=${encodeURIComponent(number)}`);
     } catch (err) {
       console.error("Call failed:", err);
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const n = numberRef.current;
+        if (n) {
+          invoke("make_call", { uri: n }).catch(console.error);
+        }
+        return;
+      }
+      if (e.key === "Backspace") {
+        setNumber((prev) => prev.slice(0, -1));
+        return;
+      }
+      if (e.key === "Escape") {
+        setNumber("");
+        return;
+      }
+      const digit = e.key;
+      if (/^[0-9*#]$/.test(digit)) {
+        setNumber((prev) => prev + digit);
+        return;
+      }
+      if (e.key === "+") {
+        setNumber((prev) => prev + "0");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        height: "100%",
-        gap: 1,
-        pt: 4,
-      }}
-    >
-      <Typography
-        variant="h4"
-        sx={{
-          fontVariantNumeric: "tabular-nums",
-          letterSpacing: 2,
-          minHeight: 48,
-          wordBreak: "break-all",
-          textAlign: "center",
-        }}
-      >
-        {number || (
-          <Typography component="span" variant="h6" color="text.secondary">
-            Enter number
-          </Typography>
-        )}
-      </Typography>
-
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 1.5,
-          mt: 2,
-        }}
-      >
-        {DIAL_PAD.map(({ digit, letters }) => (
-          <Button
-            key={digit}
-            onClick={() => handleDial(digit)}
-            sx={{
-              width: 72,
-              height: 64,
-              borderRadius: 3,
-              fontSize: 24,
-              fontWeight: 400,
-              minWidth: "unset",
-              flexDirection: "column",
-              color: "text.primary",
-              border: 1,
-              borderColor: "divider",
-              "&:hover": { bgcolor: "action.hover" },
-              "&:active": { bgcolor: "action.selected" },
-            }}
-          >
-            {digit}
-            {letters && (
-              <Box
-                component="span"
-                sx={{ fontSize: 10, opacity: 0.5, mt: 0.5, letterSpacing: 1 }}
-              >
-                {letters}
-              </Box>
-            )}
-          </Button>
-        ))}
-      </Box>
-
       <Box
         sx={{
           display: "flex",
-          gap: 4,
+          flexDirection: "column",
           alignItems: "center",
-          mt: 3,
+          height: "100%",
+          gap: 1,
+          pt: 3,
         }}
       >
-        <IconButton onClick={handleBackspace} size="large">
-          <BackspaceIcon />
-        </IconButton>
-        <IconButton
-          onClick={handleCall}
-          size="large"
+        <Typography
+          variant="h4"
           sx={{
-            bgcolor: "success.main",
-            color: "white",
-            width: 64,
-            height: 64,
-            "&:hover": { bgcolor: "success.dark" },
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: 1.5,
+            minHeight: 40,
+            wordBreak: "break-all",
+            textAlign: "center",
           }}
         >
-          <CallIcon sx={{ fontSize: 32 }} />
-        </IconButton>
-        <Box sx={{ width: 48 }} />
+          {number || (
+            <Typography component="span" variant="h6" color="text.secondary">
+              {t("dialer.enter_number")}
+            </Typography>
+          )}
+        </Typography>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 1.25,
+            mt: 1.5,
+          }}
+        >
+          {DIAL_PAD.map(({ digit, letters }) => (
+            <Button
+              key={digit}
+              onClick={() => handleDial(digit)}
+              sx={{
+                width: 64,
+                height: 54,
+                borderRadius: 2.5,
+                fontSize: 22,
+                fontWeight: 400,
+                minWidth: "unset",
+                flexDirection: "column",
+                color: "text.primary",
+                border: "1px solid",
+                borderColor: (t) => t.palette.mode === "dark" ? "grey.600" : "grey.400",
+                "&:hover": { bgcolor: "action.hover" },
+                "&:active": { bgcolor: "action.selected" },
+              }}
+            >
+              {digit}
+              {letters && (
+                <Box
+                  component="span"
+                  sx={{ fontSize: 10, opacity: 0.5, letterSpacing: 0.5 }}
+                >
+                  {letters}
+                </Box>
+              )}
+            </Button>
+          ))}
+        </Box>
+
+        <Box
+          sx={{
+            display: "flex",
+            gap: 4,
+            alignItems: "center",
+            mt: 2.5,
+          }}
+        >
+          <IconButton onClick={handleBackspace} size="medium">
+            <BackspaceIcon />
+          </IconButton>
+          <IconButton
+            onClick={handleCall}
+            sx={{
+              bgcolor: "success.main",
+              color: "white",
+              width: 54,
+              height: 54,
+              "&:hover": { bgcolor: "success.dark" },
+            }}
+          >
+            <CallIcon sx={{ fontSize: 28 }} />
+          </IconButton>
+          <Box sx={{ width: 40 }} />
+        </Box>
       </Box>
-    </Box>
   );
 }
 

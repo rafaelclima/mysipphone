@@ -5,9 +5,10 @@ use crate::error::AudioError;
 
 const SAMPLE_RATE: u32 = 44100;
 const CHANNELS: u32 = 1;
-const TONE_FREQ: f32 = 440.0;
-const TONE_DURATION_MS: u32 = 500;
-const SILENCE_DURATION_MS: u32 = 300;
+const TONE_FREQ1: f32 = 440.0;
+const TONE_FREQ2: f32 = 480.0;
+const TONE_DURATION_MS: u32 = 1000;
+const SILENCE_DURATION_MS: u32 = 3000;
 
 pub struct RingtonePlayer {
     playing: Arc<AtomicBool>,
@@ -61,7 +62,9 @@ impl RingtonePlayer {
         let mut tone_buf: Vec<i16> = Vec::with_capacity(tone_samples);
         for i in 0..tone_samples {
             let t = i as f32 / SAMPLE_RATE as f32;
-            let sample = (t * TONE_FREQ * 2.0 * std::f32::consts::PI).sin();
+            let s1 = (t * TONE_FREQ1 * 2.0 * std::f32::consts::PI).sin();
+            let s2 = (t * TONE_FREQ2 * 2.0 * std::f32::consts::PI).sin();
+            let sample = (s1 + s2) * 0.5;
             tone_buf.push((sample * i16::MAX as f32) as i16);
         }
 

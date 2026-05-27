@@ -32,6 +32,12 @@ impl Database {
             "SELECT id, display_name, sip_uri, registrar, username, password, realm, transport FROM accounts WHERE is_active = 1",
         )?;
         let accounts = stmt.query_map([], |row| {
+            let transport_str: String = row.get(7)?;
+            let transport = match transport_str.to_lowercase().as_str() {
+                "tcp" => shared::SipTransport::Tcp,
+                "tls" => shared::SipTransport::Tls,
+                _ => shared::SipTransport::Udp,
+            };
             Ok(shared::AccountConfig {
                 id: row.get(0)?,
                 display_name: row.get(1)?,
@@ -40,7 +46,7 @@ impl Database {
                 username: row.get(4)?,
                 password: row.get(5)?,
                 realm: row.get(6)?,
-                transport: shared::SipTransport::Udp,
+                transport,
             })
         })?;
         accounts.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -85,10 +91,10 @@ impl Database {
                 entry.id,
                 entry.remote_uri,
                 entry.remote_name,
-                format!("{:?}", entry.direction),
+                serde_json::to_string(&entry.direction).map(|s| s.trim_matches('"').to_string()).unwrap_or_default(),
                 entry.start_time,
                 entry.duration_secs,
-                format!("{:?}", entry.end_reason),
+                serde_json::to_string(&entry.end_reason).map(|s| s.trim_matches('"').to_string()).unwrap_or_default(),
             ],
         )?;
         Ok(())
@@ -104,14 +110,18 @@ impl Database {
              FROM call_log ORDER BY start_time DESC LIMIT ?1",
         )?;
         let entries = stmt.query_map(params![limit], |row| {
+            let dir_str: String = row.get(3)?;
+            let direction: shared::CallDirection = dir_str.parse().unwrap_or(shared::CallDirection::Outgoing);
+            let reason_str: String = row.get(6)?;
+            let end_reason: shared::CallEndReason = reason_str.parse().unwrap_or(shared::CallEndReason::Unknown);
             Ok(shared::CallLogEntry {
                 id: row.get(0)?,
                 remote_uri: row.get(1)?,
                 remote_name: row.get(2)?,
-                direction: shared::CallDirection::Outgoing,
+                direction,
                 start_time: row.get(4)?,
                 duration_secs: row.get(5)?,
-                end_reason: shared::CallEndReason::Unknown,
+                end_reason,
             })
         })?;
         entries.collect::<Result<Vec<_>, _>>().map_err(Into::into)

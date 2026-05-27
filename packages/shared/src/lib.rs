@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -20,6 +21,17 @@ pub enum CallDirection {
     Incoming,
 }
 
+impl FromStr for CallDirection {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "outgoing" => Ok(CallDirection::Outgoing),
+            "incoming" => Ok(CallDirection::Incoming),
+            _ => Err(format!("invalid CallDirection: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountState {
@@ -30,6 +42,7 @@ pub enum AccountState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum CallEndReason {
     LocalHangup,
     RemoteHangup,
@@ -39,6 +52,23 @@ pub enum CallEndReason {
     NetworkError,
     Timeout,
     Unknown,
+}
+
+impl FromStr for CallEndReason {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "local_hangup" => Ok(CallEndReason::LocalHangup),
+            "remote_hangup" => Ok(CallEndReason::RemoteHangup),
+            "busy" => Ok(CallEndReason::Busy),
+            "no_answer" => Ok(CallEndReason::NoAnswer),
+            "rejected" => Ok(CallEndReason::Rejected),
+            "network_error" => Ok(CallEndReason::NetworkError),
+            "timeout" => Ok(CallEndReason::Timeout),
+            "unknown" => Ok(CallEndReason::Unknown),
+            _ => Err(format!("invalid CallEndReason: {s}")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

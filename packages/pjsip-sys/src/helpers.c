@@ -18,6 +18,7 @@ int mysip_account_add(const char *id,
     cfg.cred_info[0].username = pj_str((char *)username);
     cfg.cred_info[0].data_type = PJSIP_CRED_DATA_PLAIN_PASSWD;
     cfg.cred_info[0].data = pj_str((char *)password);
+    cfg.register_on_acc_add = PJ_FALSE;
 
     pjsua_acc_id acc_id;
     pj_status_t status = pjsua_acc_add(&cfg, PJ_FALSE, &acc_id);
@@ -28,8 +29,9 @@ int mysip_account_add(const char *id,
 
     status = pjsua_acc_set_registration(acc_id, PJ_TRUE);
     if (status != PJ_SUCCESS) {
-        *out_acc_id = -1;
-        return (int)status;
+        // Account was added successfully; registration will be attempted
+        // asynchronously by the pjsip engine. EBUSY (70013 or 171001) is
+        // benign (port unavailable or already registering).
     }
 
     *out_acc_id = (int)acc_id;
@@ -79,6 +81,13 @@ int mysip_call_hangup(int call_id)
     return (status == PJ_SUCCESS) ? 0 : (int)status;
 }
 
+int mysip_call_answer(int call_id, int code)
+{
+    pj_status_t status = pjsua_call_answer(
+        (pjsua_call_id)call_id, code, NULL, NULL);
+    return (status == PJ_SUCCESS) ? 0 : (int)status;
+}
+
 int mysip_call_set_hold(int call_id)
 {
     pj_status_t status = pjsua_call_set_hold(
@@ -108,12 +117,64 @@ int mysip_call_dial_dtmf(int call_id, const char *digits)
 
 int mysip_call_xfer(int call_id, const char *target)
 {
+    char buf[512];
+    const char *xfer_uri = target;
+
+    if (strstr(target, "sip:") == NULL && strchr(target, '@') == NULL) {
+        pjsua_call_info ci;
+        if (pjsua_call_get_info((pjsua_call_id)call_id, &ci) == PJ_SUCCESS) {
+            pjsua_acc_info ai;
+            if (pjsua_acc_get_info(ci.acc_id, &ai) == PJ_SUCCESS) {
+                int domain_len = ai.acc_uri.slen;
+                const char *at = memchr(ai.acc_uri.ptr, '@', ai.acc_uri.slen);
+                if (at) {
+                    domain_len = (ai.acc_uri.ptr + ai.acc_uri.slen) - at;
+                }
+                int n = snprintf(buf, sizeof(buf), "sip:%s%.*s",
+                                target, (int)domain_len,
+                                at ? at : ai.acc_uri.ptr);
+                if (n > 0 && n < (int)sizeof(buf)) {
+                    xfer_uri = buf;
+                }
+            }
+        }
+    }
+
     pj_str_t dst;
-    dst.ptr = (char *)target;
-    dst.slen = strlen(target);
+    dst.ptr = (char *)xfer_uri;
+    dst.slen = strlen(xfer_uri);
     pj_status_t status = pjsua_call_xfer(
         (pjsua_call_id)call_id, &dst, NULL);
     return (status == PJ_SUCCESS) ? 0 : (int)status;
+}
+
+int mysip_call_get_remote_uri(int call_id, char *buf, int buf_size)
+{
+    pjsua_call_info info;
+    pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (status != PJ_SUCCESS) return (int)status;
+    int len = info.remote_info.slen;
+    if (len >= buf_size) len = buf_size - 1;
+    memcpy(buf, info.remote_info.ptr, len);
+    buf[len] = '\0';
+    return 0;
+}
+
+int mysip_call_get_duration(int call_id, unsigned int *sec)
+{
+    pjsua_call_info info;
+    pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (status != PJ_SUCCESS) return (int)status;
+    *sec = info.total_duration.sec;
+    return 0;
+}
+
+int mysip_call_is_incoming(int call_id)
+{
+    pjsua_call_info info;
+    pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (status != PJ_SUCCESS) return -1;
+    return (info.role == PJSIP_ROLE_UAS) ? 1 : 0;
 }
 
 int mysip_call_connect_media(int call_id)

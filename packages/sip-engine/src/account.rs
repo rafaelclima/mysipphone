@@ -40,11 +40,18 @@ pub unsafe extern "C" fn rust_on_incoming_call(
     acc_id: c_int,
     call_id: c_int,
 ) {
+    let mut buf = [0i8; 512];
+    let remote_uri = if mysip_call_get_remote_uri(call_id, buf.as_mut_ptr(), 512) == 0 {
+        CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
+    } else {
+        String::new()
+    };
     if let Some(tx) = EVENT_TX.get() {
         if let Ok(guard) = tx.lock() {
             let _ = guard.try_send(CallEvent::IncomingCall {
                 account_id: acc_id,
                 call_id: call_id as i64,
+                remote_uri,
             });
         }
     }
@@ -91,8 +98,40 @@ pub unsafe extern "C" fn rust_on_call_state(
             let _ = guard.try_send(CallEvent::CallStateChanged {
                 account_id: 0,
                 call_id: call_id as i64,
-                state: call_state,
+                state: call_state.clone(),
             });
+        }
+    }
+    if call_state == shared::CallState::Ended {
+        let remote_uri = {
+            let mut buf = [0i8; 512];
+            if mysip_call_get_remote_uri(call_id, buf.as_mut_ptr(), 512) == 0 {
+                CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
+            } else {
+                String::new()
+            }
+        };
+        let mut duration_secs: u32 = 0;
+        mysip_call_get_duration(call_id, &mut duration_secs as *mut u32);
+        let is_incoming = mysip_call_is_incoming(call_id);
+        let direction = if is_incoming == 1 {
+            shared::CallDirection::Incoming
+        } else {
+            shared::CallDirection::Outgoing
+        };
+        let start_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        if let Some(tx) = EVENT_TX.get() {
+            if let Ok(guard) = tx.lock() {
+                let _ = guard.try_send(CallEvent::CallEnded(shared::CallLogEntry {
+                    id: format!("call_{}", call_id),
+                    remote_uri: remote_uri.clone(),
+                    remote_name: String::new(),
+                    direction,
+                    start_time,
+                    duration_secs: duration_secs as u64,
+                    end_reason: shared::CallEndReason::RemoteHangup,
+                }));
+            }
         }
     }
 }
@@ -203,10 +242,20 @@ impl PjsuaEngine {
             pjsua_transport_create(PJSIP_TRANSPORT_UDP, &raw const tp_cfg, &mut tp_id)
         };
 
-        if transport_status != PJ_SUCCESS {
-            tracing::warn!("Failed to create UDP transport (port may be in use): {}", transport_status);
-        } else {
+        if transport_status == PJ_SUCCESS {
             tracing::info!("UDP transport created on port 5060");
+        } else {
+            tracing::warn!("Port 5060 in use ({}), retrying with auto-assigned port", transport_status);
+            let transport_status2 = unsafe {
+                let mut tp_cfg: pjsua_transport_config = std::mem::zeroed();
+                pjsua_transport_config_default(&mut tp_cfg);
+                tp_cfg.port = 0;
+                let mut tp_id: pjsua_transport_id = -1;
+                pjsua_transport_create(PJSIP_TRANSPORT_UDP, &raw const tp_cfg, &mut tp_id)
+            };
+            if transport_status2 != PJ_SUCCESS {
+                tracing::error!("Failed to create UDP transport on any port: {}", transport_status2);
+            }
         }
 
         Self::configure_sound_device();
@@ -238,11 +287,17 @@ impl PjsuaEngine {
                 Ok(crate::SipCommand::SendDtmf(call_id, digits)) => {
                     Self::send_dtmf_impl(&event_tx, &call_id, &digits);
                 }
+                Ok(crate::SipCommand::Answer(call_id)) => {
+                    Self::answer_impl(&event_tx, &call_id);
+                }
+                Ok(crate::SipCommand::Reject(call_id)) => {
+                    Self::reject_impl(&event_tx, &call_id);
+                }
+                Ok(crate::SipCommand::Mute(ref _call_id, ref _muted)) => {
+                    tracing::warn!("Mute not yet implemented in pjsip engine");
+                }
                 Ok(crate::SipCommand::Shutdown) => {
                     shutdown.store(true, Ordering::SeqCst);
-                }
-                Ok(_) => {
-                    tracing::warn!("Command not yet implemented on pjsip thread");
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -392,6 +447,24 @@ impl PjsuaEngine {
         }
     }
 
+    fn answer_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str) {
+        if let Ok(cid) = call_id.parse::<i32>() {
+            tracing::info!("Answering call: {}", cid);
+            if let Err(e) = crate::CallManager::answer_raw(cid) {
+                tracing::error!("Failed to answer call: {}", e);
+            }
+        }
+    }
+
+    fn reject_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str) {
+        if let Ok(cid) = call_id.parse::<i32>() {
+            tracing::info!("Rejecting call: {}", cid);
+            if let Err(e) = crate::CallManager::reject_raw(cid) {
+                tracing::error!("Failed to reject call: {}", e);
+            }
+        }
+    }
+
     fn transfer_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str, target: &str) {
         if let Ok(cid) = call_id.parse::<i32>() {
             tracing::info!("Transferring call {} to {}", cid, target);
@@ -440,9 +513,11 @@ impl PjsuaEngine {
             return;
         }
 
-        if let Some(map) = ACC_ID_MAP.get() {
-            if let Ok(mut guard) = map.lock() {
-                guard.insert(acc_id, config.id.clone());
+        if acc_id >= 0 {
+            if let Some(map) = ACC_ID_MAP.get() {
+                if let Ok(mut guard) = map.lock() {
+                    guard.insert(acc_id, config.id.clone());
+                }
             }
         }
 

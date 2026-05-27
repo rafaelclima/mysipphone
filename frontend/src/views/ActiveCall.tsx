@@ -1,16 +1,24 @@
-import { useState, useEffect, useRef } from "react";
-import { Box, Typography, IconButton, Avatar } from "@mui/material";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Box, Typography, IconButton, Avatar, Button, TextField } from "@mui/material";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import DialpadIcon from "@mui/icons-material/Dialpad";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
+import SwapCallsIcon from "@mui/icons-material/SwapCalls";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallStore } from "../store/useCallStore";
+import { useTranslation } from "../i18n";
+
+const DTMF_KEYS = [
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+  ["*", "0", "#"],
+];
 
 function formatDuration(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -19,6 +27,7 @@ function formatDuration(secs: number): string {
 }
 
 function ActiveCall() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const call = useCallStore((s) => s.calls.find((c) => c.id === id));
@@ -26,7 +35,31 @@ function ActiveCall() {
   const setHold = useCallStore((s) => s.setHold);
 
   const [duration, setDuration] = useState(call?.durationSecs ?? 0);
+  const [showKeypad, setShowKeypad] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferTarget, setTransferTarget] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+
+  const callId = call?.id;
+  const sendDtmf = useCallback(async (digit: string) => {
+    if (!callId) return;
+    try {
+      await invoke("send_dtmf", { callId, digits: digit });
+    } catch (err) {
+      console.error("DTMF failed:", err);
+    }
+  }, [callId]);
+
+  const handleTransfer = useCallback(async () => {
+    if (!callId || !transferTarget) return;
+    try {
+      await invoke("transfer", { callId, target: transferTarget });
+      setTransferTarget("");
+      setShowTransfer(false);
+    } catch (err) {
+      console.error("Transfer failed:", err);
+    }
+  }, [callId, transferTarget]);
 
   useEffect(() => {
     if (call?.state === "connected") {
@@ -39,22 +72,32 @@ function ActiveCall() {
     };
   }, [call?.state]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showTransfer) { setShowTransfer(false); return; }
+        if (showKeypad) { setShowKeypad(false); return; }
+        return;
+      }
+      if (showKeypad) {
+        const digit = e.key;
+        if (/^[0-9*#]$/.test(digit)) {
+          sendDtmf(digit);
+          return;
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showKeypad, showTransfer, sendDtmf]);
+
   if (!call) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          gap: 2,
-        }}
-      >
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 2 }}>
         <Avatar sx={{ width: 80, height: 80, bgcolor: "primary.main" }}>
           <PhoneInTalkIcon sx={{ fontSize: 40 }} />
         </Avatar>
-        <Typography variant="h6">Connecting...</Typography>
+        <Typography variant="h6">{t("call.connecting")}</Typography>
       </Box>
     );
   }
@@ -93,88 +136,104 @@ function ActiveCall() {
   const avatarLetter = (call.remoteName || call.remoteUri).charAt(0).toUpperCase();
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: "100%",
-        py: 4,
-      }}
-    >
-      <Box sx={{ textAlign: "center" }}>
-        <Avatar
-          sx={{
-            width: 80,
-            height: 80,
-            bgcolor: "primary.main",
-            fontSize: 36,
-            mb: 2,
-            mx: "auto",
-          }}
-        >
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", pt: 1.5, pb: 2 }}>
+      <Box sx={{ textAlign: "center", mb: 0.5 }}>
+        <Avatar sx={{ width: 60, height: 60, bgcolor: "primary.main", fontSize: 28, mb: 0.5, mx: "auto" }}>
           {avatarLetter}
         </Avatar>
-        <Typography variant="h5" fontWeight={500}>
+        <Typography variant="subtitle1" fontWeight={500} sx={{ lineHeight: 1.2 }}>
           {call.remoteName || call.remoteUri}
         </Typography>
-        <Typography variant="h3" sx={{ fontVariantNumeric: "tabular-nums", mt: 1 }}>
+        <Typography variant="h5" sx={{ fontVariantNumeric: "tabular-nums" }}>
           {formatDuration(duration)}
         </Typography>
         {call.isOnHold && (
-          <Typography variant="body2" color="warning.main" fontWeight={600}>
+          <Typography variant="caption" color="warning.main" fontWeight={600}>
             ON HOLD
           </Typography>
         )}
       </Box>
 
-      <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
-        <ActionButton
-          icon={call.isMuted ? <MicOffIcon /> : <MicIcon />}
-          label="Mute"
-          active={call.isMuted}
-          onClick={toggleMute}
-        />
-        <ActionButton
-          icon={<DialpadIcon />}
-          label="Keypad"
-          onClick={() => {}}
-        />
-        <ActionButton
-          icon={call.isOnHold ? <PlayArrowIcon /> : <PauseIcon />}
-          label={call.isOnHold ? "Resume" : "Hold"}
-          active={call.isOnHold}
-          onClick={toggleHold}
-        />
-        <ActionButton
-          icon={<VolumeUpIcon />}
-          label="Speaker"
-          onClick={() => {}}
-        />
-      </Box>
+      {showKeypad && (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, mb: 1 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0.75 }}>
+            {DTMF_KEYS.flat().map((digit) => (
+              <Button
+                key={digit}
+                onClick={() => sendDtmf(digit)}
+                sx={{
+                  width: 52, height: 42, borderRadius: 2, fontSize: 18,
+                  minWidth: "unset", color: "text.primary",
+                  border: "1px solid", borderColor: "grey.500",
+                  "&:hover": { bgcolor: "action.hover" },
+                  "&:active": { bgcolor: "action.selected" },
+                }}
+              >
+                {digit}
+              </Button>
+            ))}
+          </Box>
+          <Typography variant="caption" color="text.secondary">{t("call.keypad_hint")}</Typography>
+        </Box>
+      )}
+
+      {showTransfer && (
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 1, px: 1 }}>
+          <TextField
+            size="small"
+            placeholder={t("call.transfer_hint")}
+            value={transferTarget}
+            onChange={(e) => setTransferTarget(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleTransfer(); }}
+            sx={{ "& .MuiInputBase-input": { fontSize: 14, py: 0.75 } }}
+          />
+          <Button size="small" variant="contained" onClick={handleTransfer}>{t("call.transfer")}</Button>
+        </Box>
+      )}
+
+      {!showKeypad && !showTransfer && (
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", justifyContent: "center", mb: 1 }}>
+          <ActionButton
+            icon={call.isMuted ? <MicOffIcon /> : <MicIcon />}
+            label={t("call.mute")}
+            active={call.isMuted}
+            onClick={toggleMute}
+          />
+          <ActionButton
+            icon={<DialpadIcon />}
+            label={t("call.keypad")}
+            onClick={() => setShowKeypad(true)}
+          />
+          <ActionButton
+            icon={call.isOnHold ? <PlayArrowIcon /> : <PauseIcon />}
+            label={call.isOnHold ? t("call.resume") : t("call.hold")}
+            active={call.isOnHold}
+            onClick={toggleHold}
+          />
+          <ActionButton
+            icon={<SwapCallsIcon />}
+            label={t("call.transfer")}
+            onClick={() => setShowTransfer(true)}
+          />
+        </Box>
+      )}
 
       <IconButton
         onClick={handleHangup}
         sx={{
-          bgcolor: "error.main",
-          color: "white",
-          width: 64,
-          height: 64,
+          bgcolor: "error.main", color: "white",
+          width: 60, height: 60, mt: "auto",
           "&:hover": { bgcolor: "error.dark" },
         }}
       >
-        <CallEndIcon sx={{ fontSize: 36 }} />
+        <CallEndIcon sx={{ fontSize: 32 }} />
       </IconButton>
     </Box>
   );
 }
 
 function ActionButton({
-  icon,
-  label,
-  active,
-  onClick,
+  icon, label, active, onClick,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -182,22 +241,20 @@ function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25 }}>
       <IconButton
         onClick={onClick}
         sx={{
           bgcolor: active ? "primary.main" : "action.selected",
           color: active ? "primary.contrastText" : "text.primary",
-          width: 52,
-          height: 52,
+          width: 44,
+          height: 44,
           "&:hover": { bgcolor: active ? "primary.dark" : "action.hover" },
         }}
       >
         {icon}
       </IconButton>
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{label}</Typography>
     </Box>
   );
 }

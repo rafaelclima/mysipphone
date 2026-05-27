@@ -28,6 +28,22 @@ impl CallManager {
         Ok(())
     }
 
+    pub fn answer_raw(call_id: i32) -> Result<(), crate::SipError> {
+        let status = unsafe { mysip_call_answer(call_id, 200) };
+        if status != 0 {
+            return Err(crate::SipError::CallFailed(status));
+        }
+        Ok(())
+    }
+
+    pub fn reject_raw(call_id: i32) -> Result<(), crate::SipError> {
+        let status = unsafe { mysip_call_answer(call_id, 486) };
+        if status != 0 {
+            return Err(crate::SipError::CallFailed(status));
+        }
+        Ok(())
+    }
+
     pub fn set_hold_raw(call_id: i32) -> Result<(), crate::SipError> {
         let status = unsafe { mysip_call_set_hold(call_id) };
         if status != 0 {

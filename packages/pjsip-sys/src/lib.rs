@@ -265,6 +265,8 @@ extern "C" {
 
     pub fn mysip_call_hangup(call_id: c_int) -> c_int;
 
+    pub fn mysip_call_answer(call_id: c_int, code: c_int) -> c_int;
+
     pub fn mysip_call_set_hold(call_id: c_int) -> c_int;
 
     pub fn mysip_call_unhold(call_id: c_int) -> c_int;
@@ -274,6 +276,19 @@ extern "C" {
     pub fn mysip_call_xfer(call_id: c_int, target: *const c_char) -> c_int;
 
     pub fn mysip_call_connect_media(call_id: c_int) -> c_int;
+
+    pub fn mysip_call_get_remote_uri(
+        call_id: c_int,
+        buf: *mut c_char,
+        buf_size: c_int,
+    ) -> c_int;
+
+    pub fn mysip_call_get_duration(
+        call_id: c_int,
+        sec: *mut c_uint,
+    ) -> c_int;
+
+    pub fn mysip_call_is_incoming(call_id: c_int) -> c_int;
 
     pub fn mysip_init_callbacks(cfg: *mut pjsua_config) -> c_int;
 

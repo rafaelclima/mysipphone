@@ -12,6 +12,9 @@ pub async fn register_account(
     config: AccountConfig,
 ) -> Result<(), String> {
     let app = state.lock().await;
+    if let Some(ref db) = app.database {
+        db.save_account(&config).map_err(|e| e.to_string())?;
+    }
     app.send_command(SipCommand::Register(config));
     Ok(())
 }
@@ -23,6 +26,26 @@ pub async fn make_call(
 ) -> Result<(), String> {
     let app = state.lock().await;
     app.send_command(SipCommand::MakeCall(uri));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn answer(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    call_id: String,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::Answer(call_id));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reject(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    call_id: String,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::Reject(call_id));
     Ok(())
 }
 
@@ -126,6 +149,19 @@ pub async fn get_call_history(
 }
 
 #[tauri::command]
+pub async fn get_active_account(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Option<AccountConfig>, String> {
+    let app = state.lock().await;
+    if let Some(ref db) = app.database {
+        let accounts = db.get_all_accounts().map_err(|e| e.to_string())?;
+        Ok(accounts.into_iter().next())
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
 pub async fn get_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let mut manager = audio_engine::AudioDeviceManager::new();
     manager.refresh().map_err(|e| e.to_string())?;
@@ -177,6 +213,19 @@ pub async fn stop_ringtone(
 ) -> Result<(), String> {
     let app = state.lock().await;
     app.send_audio_command(AudioCommand::StopRingtone);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn shutdown(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::Shutdown);
+    app.send_audio_command(AudioCommand::Shutdown);
+    drop(app);
+    app_handle.exit(0);
     Ok(())
 }
 

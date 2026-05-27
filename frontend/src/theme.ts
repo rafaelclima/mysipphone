@@ -9,15 +9,7 @@ const commonComponents = {
       },
     },
   },
-  MuiBottomNavigationAction: {
-    styleOverrides: {
-      root: {
-        "&.Mui-selected": {
-          paddingTop: 6,
-        },
-      },
-    },
-  },
+
 };
 
 export const lightTheme = createTheme({

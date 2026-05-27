@@ -1,0 +1,61 @@
+const pt_BR: Record<string, string> = {
+  "settings.title": "Configurações",
+  "settings.sip_account": "Conta SIP",
+  "settings.not_configured": "Não configurada",
+  "settings.audio_devices": "Dispositivos de Áudio",
+  "settings.audio_devices_desc": "Alto-falante, microfone & ringtone",
+  "settings.no_devices": "Nenhum dispositivo de áudio encontrado",
+  "settings.speaker": "Alto-falante",
+  "settings.microphone": "Microfone",
+  "settings.ringtone": "Ringtone",
+  "settings.dark_mode": "Modo Escuro",
+  "settings.language": "Idioma",
+  "settings.quit": "Sair",
+  "settings.quit_confirm": "Tem certeza que deseja sair?",
+  "settings.account": "Conta",
+
+  "account_setup.title": "Conta SIP",
+  "account_setup.display_name": "Nome de Exibição",
+  "account_setup.sip_uri": "SIP URI",
+  "account_setup.registrar": "Registrar",
+  "account_setup.username": "Usuário",
+  "account_setup.password": "Senha",
+  "account_setup.realm": "Realm",
+  "account_setup.register": "Registrar",
+  "account_setup.update": "Atualizar",
+  "account_setup.validation": "SIP URI, Registrar e Usuário são obrigatórios",
+
+  "dialer.enter_number": "Digite o número",
+
+  "call.connecting": "Conectando...",
+  "call.mute": "Mudo",
+  "call.keypad": "Teclado",
+  "call.hold": "Espera",
+  "call.resume": "Retomar",
+  "call.transfer": "Transferir",
+  "call.transfer_hint": "Número do destino",
+  "call.keypad_hint": "Pressione teclas no teclado para enviar DTMF",
+
+  "incoming_call.title": "Chamada Recebida",
+
+  "status.registered": "Registrado",
+  "status.registering": "Registrando...",
+  "status.unregistered": "Não registrado",
+  "status.failed": "Falha",
+
+  "history.title": "Histórico de Chamadas",
+  "history.empty": "Nenhuma chamada ainda",
+  "history.missed": "Perdida",
+  "history.incoming": "Recebida",
+  "history.outgoing": "Realizada",
+
+  "nav.dial": "Discar",
+  "nav.contacts": "Contatos",
+  "nav.history": "Histórico",
+  "nav.settings": "Ajustes",
+
+  "language.en": "Inglês",
+  "language.pt_BR": "Português (Brasil)",
+};
+
+export default pt_BR;

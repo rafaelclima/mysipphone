@@ -83,12 +83,14 @@ async fn main() {
                         sip_engine::CallEvent::IncomingCall {
                             account_id,
                             call_id,
+                            remote_uri,
                         } => (
                             "sip:incoming-call",
                             serde_json::json!({
                                 "type": "IncomingCall",
                                 "account_id": account_id,
                                 "call_id": call_id,
+                                "remote_uri": remote_uri,
                             }),
                         ),
                         sip_engine::CallEvent::DtmfReceived { call_id, digit } => (
@@ -99,6 +101,19 @@ async fn main() {
                                 "digit": digit,
                             }),
                         ),
+                        sip_engine::CallEvent::CallEnded(log_entry) => {
+                            {
+                                let app = handle.state::<Arc<Mutex<AppState>>>();
+                                let app = app.lock().await;
+                                if let Some(ref db) = app.database {
+                                    let _ = db.save_call_log(&log_entry);
+                                }
+                            }
+                            ("sip:call-log", serde_json::json!({
+                                "type": "CallEnded",
+                                "entry": log_entry,
+                            }))
+                        }
                         sip_engine::CallEvent::Error {
                             call_id,
                             message,
@@ -122,13 +137,17 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::register_account,
             commands::make_call,
+            commands::answer,
+            commands::reject,
             commands::hangup,
             commands::hold,
             commands::unhold,
             commands::mute,
+            commands::shutdown,
             commands::transfer,
             commands::send_dtmf,
             commands::get_accounts,
+            commands::get_active_account,
             commands::get_contacts,
             commands::get_call_history,
             commands::get_audio_devices,

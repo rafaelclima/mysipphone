@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   List,
@@ -12,29 +12,55 @@ import {
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneForwardedIcon from "@mui/icons-material/PhoneForwarded";
 import MissedCallIcon from "@mui/icons-material/PhoneMissed";
+import { invoke } from "@tauri-apps/api/core";
 
-const MOCK_HISTORY = [
-  { id: "h1", remoteName: "Alice Santos", direction: "Incoming", durationSecs: 145, startTime: "2026-05-26 09:15" },
-  { id: "h2", remoteName: "Bruno Oliveira", direction: "Outgoing", durationSecs: 32, startTime: "2026-05-26 08:50" },
-  { id: "h3", remoteName: "+55 11 98888-0000", direction: "Missed", durationSecs: 0, startTime: "2026-05-26 08:30" },
-  { id: "h4", remoteName: "Carla Mendes", direction: "Incoming", durationSecs: 612, startTime: "2026-05-25 14:22" },
-  { id: "h5", remoteName: "Diego Costa", direction: "Outgoing", durationSecs: 89, startTime: "2026-05-25 11:05" },
-  { id: "h6", remoteName: "Elena Souza", direction: "Incoming", durationSecs: 245, startTime: "2026-05-25 10:30" },
-  { id: "h7", remoteName: "Fernando Lima", direction: "Missed", durationSecs: 0, startTime: "2026-05-24 18:45" },
-];
+import { useTranslation } from "../i18n";
+
+interface HistoryEntry {
+  id: string;
+  remote_uri: string;
+  remote_name: string;
+  direction: string;
+  start_time: string;
+  duration_secs: number;
+  end_reason: string;
+}
 
 function formatDuration(secs: number): string {
-  if (secs === 0) return "";
+  if (!secs || secs === 0) return "";
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function CallHistory() {
-  const [logs] = useState(MOCK_HISTORY);
+function displayName(entry: HistoryEntry): string {
+  const fromUri = (uri: string) => {
+    const match = uri.match(/sip:(.+)@/);
+    return match ? match[1] : uri;
+  };
+  return entry.remote_name || fromUri(entry.remote_uri) || entry.remote_uri;
+}
 
-  const grouped = logs.reduce<Record<string, typeof logs>>((acc, log) => {
-    const date = log.startTime.split(" ")[0];
+function isMissed(entry: HistoryEntry): boolean {
+  return (
+    entry.direction === "incoming" &&
+    (entry.end_reason === "no_answer" || entry.end_reason === "busy" || entry.end_reason === "rejected")
+  );
+}
+
+function CallHistory() {
+  const { t } = useTranslation();
+  const [logs, setLogs] = useState<HistoryEntry[]>([]);
+
+  useEffect(() => {
+    invoke<HistoryEntry[]>("get_call_history")
+      .then(setLogs)
+      .catch(console.error);
+  }, []);
+
+  const grouped = logs.reduce<Record<string, HistoryEntry[]>>((acc, log) => {
+    const parts = (log.start_time || "").split(" ");
+    const date = parts[0] || "unknown";
     if (!acc[date]) acc[date] = [];
     acc[date].push(log);
     return acc;
@@ -43,8 +69,14 @@ function CallHistory() {
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 1 }}>
-        Call History
+        {t("history.title")}
       </Typography>
+
+      {Object.entries(grouped).length === 0 && (
+        <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mt: 4 }}>
+          {t("history.empty")}
+        </Typography>
+      )}
 
       {Object.entries(grouped).map(([date, calls]) => (
         <Box key={date}>
@@ -56,7 +88,9 @@ function CallHistory() {
             {date}
           </Typography>
           <List sx={{ py: 0 }}>
-            {calls.map((log) => (
+            {calls.map((log) => {
+              const missed = isMissed(log);
+              return (
               <ListItem
                 key={log.id}
                 sx={{
@@ -69,16 +103,16 @@ function CallHistory() {
                   <Avatar
                     sx={{
                       bgcolor:
-                        log.direction === "Missed"
+                        missed
                           ? "error.main"
-                          : log.direction === "Incoming"
+                          : log.direction === "incoming"
                           ? "success.main"
                           : "primary.main",
                     }}
                   >
-                    {log.direction === "Missed" ? (
+                    {missed ? (
                       <MissedCallIcon />
-                    ) : log.direction === "Incoming" ? (
+                    ) : log.direction === "incoming" ? (
                       <PhoneCallbackIcon />
                     ) : (
                       <PhoneForwardedIcon />
@@ -86,25 +120,20 @@ function CallHistory() {
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText
-                  primary={log.remoteName}
-                  secondary={`${log.startTime} ${formatDuration(log.durationSecs) ? `· ${formatDuration(log.durationSecs)}` : ""}`}
+                  primary={displayName(log)}
+                  secondary={`${log.start_time || ""} ${formatDuration(log.duration_secs) ? `· ${formatDuration(log.duration_secs)}` : ""}`}
                   primaryTypographyProps={{ fontWeight: 500 }}
                 />
                 <Chip
-                  label={log.direction}
+                  label={missed ? t("history.missed") : log.direction === "incoming" ? t("history.incoming") : t("history.outgoing")}
                   size="small"
                   variant="outlined"
-                  color={
-                    log.direction === "Missed"
-                      ? "error"
-                      : log.direction === "Incoming"
-                      ? "success"
-                      : "primary"
-                  }
+                  color={missed ? "error" : log.direction === "incoming" ? "success" : "primary"}
                   sx={{ fontWeight: 500 }}
                 />
               </ListItem>
-            ))}
+              );
+            })}
           </List>
         </Box>
       ))}

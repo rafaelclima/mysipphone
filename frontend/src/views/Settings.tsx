@@ -18,25 +18,32 @@ import {
   FormLabel,
   CircularProgress,
   Alert,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import SpeakerIcon from "@mui/icons-material/Speaker";
 import MicIcon from "@mui/icons-material/Mic";
 import RingVolumeIcon from "@mui/icons-material/RingVolume";
+import LanguageIcon from "@mui/icons-material/Language";
 import { useNavigate } from "react-router-dom";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useAudioDevicesStore } from "../store/useAudioDevicesStore";
+import { useTranslation } from "../i18n";
 
 function Settings() {
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const account = useAuthStore((s) => s.account);
   const authState = useAuthStore((s) => s.state);
+  const { t, locale, setLocale } = useTranslation();
   const navigate = useNavigate();
 
   const {
@@ -63,10 +70,10 @@ function Settings() {
   }, [audioOpen, devices.length, fetchDevices]);
 
   const stateLabel: Record<string, { label: string; color: "success" | "warning" | "error" | "default" }> = {
-    registered: { label: "Registered", color: "success" },
-    registering: { label: "Registering...", color: "warning" },
-    unregistered: { label: "Unregistered", color: "default" },
-    failed: { label: "Failed", color: "error" },
+    registered: { label: t("status.registered"), color: "success" },
+    registering: { label: t("status.registering"), color: "warning" },
+    unregistered: { label: t("status.unregistered"), color: "default" },
+    failed: { label: t("status.failed"), color: "error" },
   };
 
   const status = stateLabel[authState] || stateLabel.unregistered;
@@ -76,35 +83,38 @@ function Settings() {
   const ringtoneDevices = devices.filter((d) => d.device_type === "Ringtone");
 
   return (
-    <Box>
-      <Typography variant="h6" sx={{ px: 2, py: 1 }}>
-        Settings
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, px: 2, py: 0.75 }}>
+        {t("settings.title")}
       </Typography>
 
-      <List>
+      <List dense>
         <ListItem
           onClick={() => navigate("/account-setup")}
           sx={{
             borderRadius: 2,
-            mx: 1,
-            mb: 0.5,
+            mx: 0.75,
+            mb: 0.25,
             "&:hover": { bgcolor: "action.hover" },
           }}
         >
-          <ListItemIcon>
-            <Avatar sx={{ width: 40, height: 40, bgcolor: "primary.main" }}>
-              <AccountCircleIcon />
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>
+              <AccountCircleIcon sx={{ fontSize: 18 }} />
             </Avatar>
           </ListItemIcon>
           <ListItemText
-            primary={account ? account.displayName : "SIP Account"}
-            secondary={account ? account.sipUri : "Not configured"}
+            primary={account ? account.display_name : t("settings.sip_account")}
+            secondary={account ? account.sip_uri : t("settings.not_configured")}
+            primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
+            secondaryTypographyProps={{ fontSize: "0.75rem" }}
           />
           <Chip
             label={status.label}
             size="small"
             color={status.color}
             variant="outlined"
+            sx={{ height: 20, "& .MuiChip-label": { fontSize: 10, px: 0.75 } }}
           />
         </ListItem>
 
@@ -112,42 +122,44 @@ function Settings() {
           onClick={() => setAudioOpen(!audioOpen)}
           sx={{
             borderRadius: 2,
-            mx: 1,
-            mb: 0.5,
+            mx: 0.75,
+            mb: 0.25,
             "&:hover": { bgcolor: "action.hover" },
             cursor: "pointer",
           }}
         >
-          <ListItemIcon>
-            <Avatar sx={{ width: 40, height: 40, bgcolor: "secondary.main" }}>
-              <VolumeUpIcon />
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}>
+              <VolumeUpIcon sx={{ fontSize: 18 }} />
             </Avatar>
           </ListItemIcon>
           <ListItemText
-            primary="Audio Devices"
-            secondary="Speaker, mic & ringtone"
+            primary={t("settings.audio_devices")}
+            secondary={t("settings.audio_devices_desc")}
+            primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
+            secondaryTypographyProps={{ fontSize: "0.75rem" }}
           />
-          {audioOpen ? <ExpandLess /> : <ExpandMore />}
+          {audioOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
         </ListItem>
 
         <Collapse in={audioOpen} timeout="auto" unmountOnExit>
-          <Box sx={{ px: 4, py: 1 }}>
+          <Box sx={{ px: 2, py: 0.5 }}>
             {devicesLoading && (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-                <CircularProgress size={24} />
+              <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                <CircularProgress size={20} />
               </Box>
             )}
 
             {!devicesLoading && devices.length === 0 && (
-              <Alert severity="info" sx={{ mb: 1 }}>
-                No audio devices detected
+              <Alert severity="info" sx={{ mb: 0.5, py: 0.5, "& .MuiAlert-message": { fontSize: "0.8rem" } }}>
+                {t("settings.no_devices")}
               </Alert>
             )}
 
             {speakers.length > 0 && (
-              <FormControl component="fieldset" size="small" sx={{ mb: 2, width: "100%" }}>
-                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                  <SpeakerIcon fontSize="small" /> Speaker
+              <FormControl component="fieldset" size="small" sx={{ mb: 1.5, width: "100%" }}>
+                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5, "&.MuiFormLabel-root": { fontSize: "0.8rem" } }}>
+                  <SpeakerIcon sx={{ fontSize: 14 }} /> {t("settings.speaker")}
                 </FormLabel>
                 <RadioGroup
                   value={outputDeviceId || ""}
@@ -157,13 +169,13 @@ function Settings() {
                     <FormControlLabel
                       key={d.id}
                       value={d.id}
-                      control={<Radio size="small" />}
+                      control={<Radio sx={{ "& .MuiSvgIcon-root": { fontSize: 16 } }} />}
                       label={
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 220 }}>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 140, fontSize: "0.78rem" }}>
                           {d.name}
                         </Typography>
                       }
-                      sx={{ "& .MuiTypography-root": { fontSize: "0.85rem" } }}
+                      sx={{ "& .MuiTypography-root": { fontSize: "0.78rem" }, my: -0.25 }}
                     />
                   ))}
                 </RadioGroup>
@@ -171,9 +183,9 @@ function Settings() {
             )}
 
             {microphones.length > 0 && (
-              <FormControl component="fieldset" size="small" sx={{ mb: 2, width: "100%" }}>
-                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                  <MicIcon fontSize="small" /> Microphone
+              <FormControl component="fieldset" size="small" sx={{ mb: 1.5, width: "100%" }}>
+                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5, "&.MuiFormLabel-root": { fontSize: "0.8rem" } }}>
+                  <MicIcon sx={{ fontSize: 14 }} /> {t("settings.microphone")}
                 </FormLabel>
                 <RadioGroup
                   value={inputDeviceId || ""}
@@ -183,13 +195,13 @@ function Settings() {
                     <FormControlLabel
                       key={d.id}
                       value={d.id}
-                      control={<Radio size="small" />}
+                      control={<Radio sx={{ "& .MuiSvgIcon-root": { fontSize: 16 } }} />}
                       label={
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 220 }}>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 140, fontSize: "0.78rem" }}>
                           {d.name}
                         </Typography>
                       }
-                      sx={{ "& .MuiTypography-root": { fontSize: "0.85rem" } }}
+                      sx={{ "& .MuiTypography-root": { fontSize: "0.78rem" }, my: -0.25 }}
                     />
                   ))}
                 </RadioGroup>
@@ -197,9 +209,9 @@ function Settings() {
             )}
 
             {ringtoneDevices.length > 0 && (
-              <FormControl component="fieldset" size="small" sx={{ mb: 1, width: "100%" }}>
-                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                  <RingVolumeIcon fontSize="small" /> Ringtone
+              <FormControl component="fieldset" size="small" sx={{ mb: 0.5, width: "100%" }}>
+                <FormLabel component="legend" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5, "&.MuiFormLabel-root": { fontSize: "0.8rem" } }}>
+                  <RingVolumeIcon sx={{ fontSize: 14 }} /> {t("settings.ringtone")}
                 </FormLabel>
                 <RadioGroup
                   value={ringtoneDeviceId || ""}
@@ -209,13 +221,13 @@ function Settings() {
                     <FormControlLabel
                       key={d.id}
                       value={d.id}
-                      control={<Radio size="small" />}
+                      control={<Radio sx={{ "& .MuiSvgIcon-root": { fontSize: 16 } }} />}
                       label={
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 220 }}>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 140, fontSize: "0.78rem" }}>
                           {d.name}
                         </Typography>
                       }
-                      sx={{ "& .MuiTypography-root": { fontSize: "0.85rem" } }}
+                      sx={{ "& .MuiTypography-root": { fontSize: "0.78rem" }, my: -0.25 }}
                     />
                   ))}
                 </RadioGroup>
@@ -224,32 +236,88 @@ function Settings() {
           </Box>
         </Collapse>
 
-        <Divider sx={{ my: 1 }} />
+        <Divider sx={{ my: 0.75 }} />
 
         <ListItem
           sx={{
             borderRadius: 2,
-            mx: 1,
-            mb: 0.5,
+            mx: 0.75,
+            mb: 0.25,
           }}
         >
-          <ListItemIcon>
-            <Avatar sx={{ width: 40, height: 40, bgcolor: "grey.500" }}>
-              <DarkModeIcon />
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "grey.500" }}>
+              <DarkModeIcon sx={{ fontSize: 18 }} />
             </Avatar>
           </ListItemIcon>
-          <ListItemText primary="Dark Mode" />
+          <ListItemText
+            primary={t("settings.dark_mode")}
+            primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
+          />
           <Switch
+            size="small"
             checked={themeMode === "dark"}
             onChange={(_, checked) => setThemeMode(checked ? "dark" : "light")}
           />
         </ListItem>
+
+        <ListItem
+          sx={{
+            borderRadius: 2,
+            mx: 0.75,
+            mb: 0.25,
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "grey.500" }}>
+              <LanguageIcon sx={{ fontSize: 18 }} />
+            </Avatar>
+          </ListItemIcon>
+          <ListItemText
+            primary={t("settings.language")}
+            primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
+          />
+          <Select
+            size="small"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as "en" | "pt-BR")}
+            sx={{
+              fontSize: "0.75rem",
+              "& .MuiSelect-select": { py: 0.25, pr: 2 },
+            }}
+          >
+            <MenuItem value="en">{t("language.en")}</MenuItem>
+            <MenuItem value="pt-BR">{t("language.pt_BR")}</MenuItem>
+          </Select>
+        </ListItem>
       </List>
 
-      <Box sx={{ px: 3, mt: 4, textAlign: "center" }}>
-        <Typography variant="caption" color="text.secondary">
-          mySIPPhone v0.1.0
-        </Typography>
+      <Box sx={{ mt: "auto" }}>
+        <Divider sx={{ mb: 0.5 }} />
+        <ListItem
+          onClick={() => { invoke("shutdown"); }}
+          sx={{
+            borderRadius: 2,
+            mx: 0.75,
+            mb: 0.25,
+            "&:hover": { bgcolor: "error.light", cursor: "pointer" },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "error.main" }}>
+              <PowerSettingsNewIcon sx={{ fontSize: 18 }} />
+            </Avatar>
+          </ListItemIcon>
+          <ListItemText
+            primary={t("settings.quit")}
+            primaryTypographyProps={{ color: "error.main", fontWeight: 600, fontSize: "0.85rem" }}
+          />
+        </ListItem>
+        <Box sx={{ px: 2, mt: 2, textAlign: "center" }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+            mySIPPhone v0.1.0
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );

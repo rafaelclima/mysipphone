@@ -26,22 +26,22 @@ function StatusBar() {
       sx={{
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
-        px: 3,
-        pt: 3.5,
-        pb: 0.5,
+        alignItems: "flex-start",
+        px: 2,
+        pt: 3,
+        pb: 0.25,
         bgcolor: "grey.900",
         color: "white",
         zIndex: 5,
       }}
     >
-      <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 12 }}>
+      <Typography sx={{ fontWeight: 600, fontSize: 10, lineHeight: 1 }}>
         {time}
       </Typography>
-      <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
-        <SignalCellularAltIcon sx={{ fontSize: 16 }} />
-        <WifiIcon sx={{ fontSize: 14 }} />
-        <BatteryFullIcon sx={{ fontSize: 18 }} />
+      <Box sx={{ display: "flex", gap: 0.25, alignItems: "center" }}>
+        <SignalCellularAltIcon sx={{ fontSize: 13 }} />
+        <WifiIcon sx={{ fontSize: 12 }} />
+        <BatteryFullIcon sx={{ fontSize: 14 }} />
       </Box>
     </Box>
   );

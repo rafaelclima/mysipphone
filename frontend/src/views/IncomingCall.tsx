@@ -1,14 +1,31 @@
+import { useEffect } from "react";
 import { Box, Typography, IconButton, Avatar } from "@mui/material";
 import CallIcon from "@mui/icons-material/Call";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallStore } from "../store/useCallStore";
+import { useTranslation } from "../i18n";
 
 function IncomingCall() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const incomingCall = useCallStore((s) => s.incomingCall);
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        handleAnswer();
+        return;
+      }
+      if (e.key === "Escape") {
+        handleReject();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   if (!incomingCall) {
     return null;
@@ -60,7 +77,7 @@ function IncomingCall() {
       </Avatar>
 
       <Typography variant="h6" color="success.main" fontWeight={600}>
-        Incoming Call
+        {t("incoming_call.title")}
       </Typography>
 
       <Typography variant="h5" fontWeight={500}>

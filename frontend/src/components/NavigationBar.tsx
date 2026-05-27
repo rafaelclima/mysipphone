@@ -4,8 +4,10 @@ import ContactsIcon from "@mui/icons-material/Contacts";
 import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 function NavigationBar() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -21,8 +23,6 @@ function NavigationBar() {
     <Box
       sx={{
         bgcolor: "grey.900",
-        px: 1,
-        pb: 1.5,
         "& .MuiBottomNavigation-root": {
           bgcolor: "transparent",
         },
@@ -38,19 +38,25 @@ function NavigationBar() {
         sx={{
           "& .MuiBottomNavigationAction-root": {
             color: "grey.500",
+            minWidth: 0,
+            py: 0.25,
             "&.Mui-selected": {
               color: "primary.main",
             },
           },
           "& .MuiSvgIcon-root": {
-            fontSize: 24,
+            fontSize: 20,
+          },
+          "& .MuiBottomNavigationAction-label": {
+            fontSize: 10,
+            mt: 0.25,
           },
         }}
       >
-        <BottomNavigationAction label="Dialer" icon={<DialpadIcon />} />
-        <BottomNavigationAction label="Contacts" icon={<ContactsIcon />} />
-        <BottomNavigationAction label="History" icon={<HistoryIcon />} />
-        <BottomNavigationAction label="Settings" icon={<SettingsIcon />} />
+        <BottomNavigationAction label={t("nav.dial")} icon={<DialpadIcon />} />
+        <BottomNavigationAction label={t("nav.contacts")} icon={<ContactsIcon />} />
+        <BottomNavigationAction label={t("nav.history")} icon={<HistoryIcon />} />
+        <BottomNavigationAction label={t("nav.settings")} icon={<SettingsIcon />} />
       </BottomNavigation>
     </Box>
   );

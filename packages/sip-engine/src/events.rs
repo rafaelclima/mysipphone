@@ -16,6 +16,7 @@ pub enum CallEvent {
     IncomingCall {
         account_id: i32,
         call_id: i64,
+        remote_uri: String,
     },
     DtmfReceived {
         call_id: String,
@@ -25,4 +26,5 @@ pub enum CallEvent {
         call_id: Option<String>,
         message: String,
     },
+    CallEnded(shared::CallLogEntry),
 }

@@ -2,8 +2,8 @@ import { create } from "zustand";
 
 export interface AccountConfig {
   id: string;
-  displayName: string;
-  sipUri: string;
+  display_name: string;
+  sip_uri: string;
   registrar: string;
   username: string;
   password: string;
