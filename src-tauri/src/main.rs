@@ -149,6 +149,8 @@ async fn main() {
             commands::get_accounts,
             commands::get_active_account,
             commands::get_contacts,
+            commands::add_contact,
+            commands::delete_contact,
             commands::get_call_history,
             commands::get_audio_devices,
             commands::set_audio_output_device,

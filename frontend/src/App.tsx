@@ -39,9 +39,15 @@ function App() {
         if (!state) return;
 
         if (state === "ended" || state === "failed") {
+          const wasActive = useCallStore.getState().activeCallId === callId;
           removeCall(callId);
           invoke("stop_ringtone").catch(() => {});
-          navigate("/", { replace: true });
+          const remaining = useCallStore.getState().calls;
+          if (remaining.length > 0 && wasActive) {
+            navigate(`/call/${remaining[remaining.length - 1].id}`, { replace: true });
+          } else {
+            navigate("/", { replace: true });
+          }
           return;
         }
 
@@ -72,6 +78,10 @@ function App() {
         const payload = event.payload as { call_id?: number; remote_uri?: string };
         const id = String(payload.call_id ?? "?");
         const remoteUri = payload.remote_uri ?? "";
+        const hasActiveCalls = useCallStore.getState().calls.length > 0;
+        if (!hasActiveCalls) {
+          invoke("play_ringtone").catch(() => {});
+        }
         setIncomingCall({
           id,
           direction: "incoming",
@@ -82,7 +92,6 @@ function App() {
           isMuted: false,
           isOnHold: false,
         });
-        invoke("play_ringtone").catch(() => {});
       });
       unlistenersRef.current.push(u3);
 
@@ -102,7 +111,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (incomingCall) {
+  if (incomingCall && useCallStore.getState().calls.length === 0) {
     return (
       <PhoneShell>
         <Routes>

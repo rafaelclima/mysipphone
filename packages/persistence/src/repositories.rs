@@ -62,6 +62,12 @@ impl Database {
         Ok(())
     }
 
+    pub fn delete_contact(&self, id: &str) -> Result<(), PersistenceError> {
+        let conn = self.connection();
+        conn.execute("DELETE FROM contacts WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     pub fn get_all_contacts(&self) -> Result<Vec<shared::Contact>, PersistenceError> {
         let conn = self.connection();
         let mut stmt = conn.prepare(

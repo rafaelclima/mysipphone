@@ -8,10 +8,12 @@ import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import SwapCallsIcon from "@mui/icons-material/SwapCalls";
+import PhoneForwardedIcon from "@mui/icons-material/PhoneForwarded";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallStore } from "../store/useCallStore";
 import { useTranslation } from "../i18n";
+import IncomingBanner from "../components/IncomingBanner";
 
 const DTMF_KEYS = [
   ["1", "2", "3"],
@@ -31,6 +33,8 @@ function ActiveCall() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const call = useCallStore((s) => s.calls.find((c) => c.id === id));
+  const calls = useCallStore((s) => s.calls);
+  const incomingCall = useCallStore((s) => s.incomingCall);
   const setMuted = useCallStore((s) => s.setMuted);
   const setHold = useCallStore((s) => s.setHold);
 
@@ -133,10 +137,32 @@ function ActiveCall() {
     }
   };
 
+  const heldCalls = calls.filter((c) => c.isOnHold && c.id !== call?.id);
+
+  const handleSwap = async (targetId: string) => {
+    if (!call) return;
+    try {
+      await invoke("hold", { callId: call.id });
+      setHold(call.id, true);
+    } catch (err) {
+      console.error("Hold failed:", err);
+      return;
+    }
+    try {
+      await invoke("unhold", { callId: targetId });
+      setHold(targetId, false);
+    } catch (err) {
+      console.error("Unhold failed:", err);
+      return;
+    }
+    navigate(`/call/${targetId}`, { replace: true });
+  };
+
   const avatarLetter = (call.remoteName || call.remoteUri).charAt(0).toUpperCase();
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", pt: 1.5, pb: 2 }}>
+    <Box sx={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", height: "100%", pt: 1.5, pb: 2 }}>
+      {incomingCall && <IncomingBanner call={incomingCall} />}
       <Box sx={{ textAlign: "center", mb: 0.5 }}>
         <Avatar sx={{ width: 60, height: 60, bgcolor: "primary.main", fontSize: 28, mb: 0.5, mx: "auto" }}>
           {avatarLetter}
@@ -184,10 +210,15 @@ function ActiveCall() {
             placeholder={t("call.transfer_hint")}
             value={transferTarget}
             onChange={(e) => setTransferTarget(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleTransfer(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleTransfer();
+              if (e.key === "Escape") setShowTransfer(false);
+            }}
+            autoFocus
             sx={{ "& .MuiInputBase-input": { fontSize: 14, py: 0.75 } }}
           />
           <Button size="small" variant="contained" onClick={handleTransfer}>{t("call.transfer")}</Button>
+          <Button size="small" onClick={() => setShowTransfer(false)} sx={{ minWidth: 36, px: 0.5 }}>✕</Button>
         </Box>
       )}
 
@@ -215,6 +246,39 @@ function ActiveCall() {
             label={t("call.transfer")}
             onClick={() => setShowTransfer(true)}
           />
+        </Box>
+      )}
+
+      {heldCalls.length > 0 && (
+        <Box sx={{ width: "100%", px: 1.5, mb: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+            {t("call.on_hold")}
+          </Typography>
+          {heldCalls.map((held) => (
+            <Box
+              key={held.id}
+              onClick={() => handleSwap(held.id)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                p: 1,
+                borderRadius: 2,
+                bgcolor: "action.selected",
+                cursor: "pointer",
+                "&:hover": { bgcolor: "action.hover" },
+                mb: 0.5,
+              }}
+            >
+              <PhoneForwardedIcon sx={{ fontSize: 18, color: "warning.main" }} />
+              <Typography variant="body2" sx={{ flex: 1 }} noWrap>
+                {held.remoteName || held.remoteUri}
+              </Typography>
+              <Typography variant="caption" color="warning.main" fontWeight={600}>
+                {t("call.on_hold_label")}
+              </Typography>
+            </Box>
+          ))}
         </Box>
       )}
 

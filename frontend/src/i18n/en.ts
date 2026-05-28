@@ -34,6 +34,10 @@ const en: Record<string, string> = {
   "call.transfer": "Transfer",
   "call.transfer_hint": "Target number",
   "call.keypad_hint": "Press digits on keyboard to send DTMF",
+  "call.on_hold": "On hold",
+  "call.on_hold_label": "HOLD",
+  "call.swap": "Swap",
+  "call.calls_waiting": "Calls waiting",
 
   "incoming_call.title": "Incoming Call",
 
@@ -41,6 +45,19 @@ const en: Record<string, string> = {
   "status.registering": "Registering...",
   "status.unregistered": "Unregistered",
   "status.failed": "Failed",
+
+  "contacts.title": "Contacts",
+  "contacts.search": "Search contacts...",
+  "contacts.add": "Add Contact",
+  "contacts.edit": "Edit Contact",
+  "contacts.name": "Name",
+  "contacts.sip_uri": "SIP URI",
+  "contacts.phone": "Phone Number",
+  "contacts.extension": "Number / Extension",
+  "contacts.save": "Save",
+  "contacts.cancel": "Cancel",
+  "contacts.empty": "No contacts yet",
+  "contacts.no_results": "No contacts found",
 
   "history.title": "Call History",
   "history.empty": "No calls yet",

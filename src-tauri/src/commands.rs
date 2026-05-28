@@ -125,6 +125,32 @@ pub async fn get_accounts(
 }
 
 #[tauri::command]
+pub async fn add_contact(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    contact: Contact,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    if let Some(ref db) = app.database {
+        db.save_contact(&contact).map_err(|e| e.to_string())
+    } else {
+        Err("Database not available".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn delete_contact(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    contact_id: String,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    if let Some(ref db) = app.database {
+        db.delete_contact(&contact_id).map_err(|e| e.to_string())
+    } else {
+        Err("Database not available".to_string())
+    }
+}
+
+#[tauri::command]
 pub async fn get_contacts(
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Contact>, String> {

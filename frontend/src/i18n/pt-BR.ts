@@ -35,6 +35,10 @@ const pt_BR: Record<string, string> = {
   "call.transfer": "Transferir",
   "call.transfer_hint": "Número do destino",
   "call.keypad_hint": "Pressione teclas no teclado para enviar DTMF",
+  "call.on_hold": "Em espera",
+  "call.on_hold_label": "ESPERA",
+  "call.swap": "Alternar",
+  "call.calls_waiting": "Chamadas em espera",
 
   "incoming_call.title": "Chamada Recebida",
 
@@ -42,6 +46,19 @@ const pt_BR: Record<string, string> = {
   "status.registering": "Registrando...",
   "status.unregistered": "Não registrado",
   "status.failed": "Falha",
+
+  "contacts.title": "Contatos",
+  "contacts.search": "Pesquisar contatos...",
+  "contacts.add": "Adicionar Contato",
+  "contacts.edit": "Editar Contato",
+  "contacts.name": "Nome",
+  "contacts.sip_uri": "SIP URI",
+  "contacts.phone": "Telefone",
+  "contacts.extension": "Número / Ramal",
+  "contacts.save": "Salvar",
+  "contacts.cancel": "Cancelar",
+  "contacts.empty": "Nenhum contato ainda",
+  "contacts.no_results": "Nenhum contato encontrado",
 
   "history.title": "Histórico de Chamadas",
   "history.empty": "Nenhuma chamada ainda",

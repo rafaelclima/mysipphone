@@ -37,10 +37,16 @@ export const useCallStore = create<CallStore>((set) => ({
     })),
 
   removeCall: (id) =>
-    set((state) => ({
-      calls: state.calls.filter((c) => c.id !== id),
-      activeCallId: state.activeCallId === id ? null : state.activeCallId,
-    })),
+    set((state) => {
+      const remaining = state.calls.filter((c) => c.id !== id);
+      const newActive = state.activeCallId === id
+        ? (remaining.length > 0 ? remaining[remaining.length - 1].id : null)
+        : state.activeCallId;
+      return {
+        calls: remaining,
+        activeCallId: newActive,
+      };
+    }),
 
   updateCallState: (id, state) =>
     set((prev) => ({
