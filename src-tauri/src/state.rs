@@ -10,11 +10,15 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        sip_cmd_tx: SipCommandSender,
-        audio_cmd_tx: AudioCommandSender,
-        call_event_tx: CallEventSender,
+        sip_cmd_tx: std::sync::mpsc::Sender<sip_engine::SipCommand>,
+        audio_cmd_tx: tokio::sync::mpsc::Sender<audio_engine::AudioCommand>,
+        call_event_tx: tokio::sync::mpsc::Sender<sip_engine::CallEvent>,
     ) -> Self {
-        let db_path = std::env::temp_dir().join("mysipphone.db");
+        let db_dir = dirs::data_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join("mysipphone");
+        std::fs::create_dir_all(&db_dir).ok();
+        let db_path = db_dir.join("mysipphone.db");
         let db_path_str = db_path.to_string_lossy().to_string();
         let database = persistence::Database::open(&db_path_str).ok();
         tracing::info!("Database path: {}", db_path_str);

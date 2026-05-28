@@ -11,25 +11,62 @@ use tokio::sync::mpsc;
 static EVENT_TX: OnceLock<Mutex<mpsc::Sender<CallEvent>>> = OnceLock::new();
 static ACC_ID_MAP: OnceLock<Mutex<HashMap<i32, String>>> = OnceLock::new();
 static ACTIVE_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
+static HUNG_UP_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>> = OnceLock::new();
 
 // ── C-callable callbacks (linked by name from helpers.c bridges) ──
 
 #[no_mangle]
+static RETRY_COUNT: OnceLock<Mutex<HashMap<i32, u32>>> = OnceLock::new();
+static RETRY_TX: OnceLock<Mutex<std::sync::mpsc::Sender<crate::SipCommand>>> = OnceLock::new();
+
+pub fn set_retry_command_tx(tx: std::sync::mpsc::Sender<crate::SipCommand>) {
+    let _ = RETRY_TX.set(Mutex::new(tx));
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn rust_on_reg_state2(
     acc_id: pjsua_acc_id,
-    _info: *mut pjsua_reg_info,
+    info: *mut pjsua_reg_info,
 ) {
     let account_id = ACC_ID_MAP
         .get()
         .and_then(|m| m.lock().ok())
         .and_then(|guard| guard.get(&acc_id).cloned())
         .unwrap_or_else(|| format!("{}", acc_id));
-    if let Some(tx) = EVENT_TX.get() {
-        if let Ok(guard) = tx.lock() {
-            let _ = guard.try_send(CallEvent::AccountStateChanged {
-                account_id,
-                state: shared::AccountState::Registered,
+    let code = mysip_reg_info_get_code(info);
+    tracing::info!("Registration state: acc_id={}, code={}", acc_id, code);
+    if (200..300).contains(&code) {
+        let _ = RETRY_COUNT.get_or_init(|| Mutex::new(HashMap::new())).lock().map(|mut m| m.remove(&acc_id));
+        if let Some(tx) = EVENT_TX.get() {
+            if let Ok(guard) = tx.lock() {
+                let _ = guard.try_send(CallEvent::AccountStateChanged {
+                    account_id,
+                    state: shared::AccountState::Registered,
+                });
+            }
+        }
+    } else if code > 0 {
+        if let Some(tx) = EVENT_TX.get() {
+            if let Ok(guard) = tx.lock() {
+                let _ = guard.try_send(CallEvent::AccountStateChanged {
+                    account_id: account_id.clone(),
+                    state: shared::AccountState::RegistrationFailed,
+                });
+            }
+        }
+        let attempts = RETRY_COUNT.get_or_init(|| Mutex::new(HashMap::new())).lock().map(|mut m| {
+            let n = m.entry(acc_id).or_insert(0);
+            *n += 1;
+            *n
+        }).unwrap_or(1);
+        let delay_ms = std::cmp::min(1000 * (1 << std::cmp::min(attempts, 6)), 60000);
+        tracing::info!("Registration failed (code={}), retry #{} in {}ms", code, attempts, delay_ms);
+        if let Some(tx) = RETRY_TX.get().and_then(|m| m.lock().ok()) {
+            let cmd_tx = tx.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                let _ = cmd_tx.send(crate::SipCommand::RetryRegister(acc_id));
             });
         }
     }
@@ -119,17 +156,31 @@ pub unsafe extern "C" fn rust_on_call_state(
         } else {
             shared::CallDirection::Outgoing
         };
+        let last_status = mysip_call_get_last_status(call_id);
+        let was_local = HUNG_UP_CALLS.get().and_then(|m| m.lock().ok()).map(|mut set| set.remove(&call_id)).unwrap_or(false);
+        let end_reason = if was_local {
+            shared::CallEndReason::LocalHangup
+        } else {
+            match last_status {
+                486 | 600 => shared::CallEndReason::Busy,
+                408 | 487 => shared::CallEndReason::NoAnswer,
+                603 => shared::CallEndReason::Rejected,
+                480 => shared::CallEndReason::NoAnswer,
+                _ => shared::CallEndReason::RemoteHangup,
+            }
+        };
         let start_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         if let Some(tx) = EVENT_TX.get() {
             if let Ok(guard) = tx.lock() {
+                let id = format!("call_{}_{}", call_id, chrono::Local::now().format("%Y%m%d%H%M%S%3f"));
                 let _ = guard.try_send(CallEvent::CallEnded(shared::CallLogEntry {
-                    id: format!("call_{}", call_id),
+                    id,
                     remote_uri: remote_uri.clone(),
                     remote_name: String::new(),
                     direction,
                     start_time,
                     duration_secs: duration_secs as u64,
-                    end_reason: shared::CallEndReason::RemoteHangup,
+                    end_reason,
                 }));
             }
         }
@@ -167,10 +218,24 @@ impl PjsuaEngine {
             .expect("PjsuaEngine already started");
         let _ = ACC_ID_MAP.set(Mutex::new(HashMap::new()));
 
+        let (cmd_tx, cmd_rx2) = std::sync::mpsc::channel::<crate::SipCommand>();
+        set_retry_command_tx(cmd_tx.clone());
+
+        std::thread::Builder::new()
+            .name("sip-cmd-forward".into())
+            .spawn(move || {
+                while let Ok(cmd) = cmd_rx.recv() {
+                    if cmd_tx.send(cmd).is_err() {
+                        break;
+                    }
+                }
+            })
+            .expect("Failed to spawn cmd forward thread");
+
         std::thread::Builder::new()
             .name("pjsip-engine".into())
             .spawn(move || {
-                Self::run_pjsip(thread_tx, cmd_rx, flag);
+                Self::run_pjsip(thread_tx, cmd_rx2, flag);
             })
             .expect("Failed to spawn pjsip thread");
 
@@ -292,6 +357,14 @@ impl PjsuaEngine {
                 }
                 Ok(crate::SipCommand::Reject(call_id)) => {
                     Self::reject_impl(&event_tx, &call_id);
+                }
+                Ok(crate::SipCommand::RetryRegister(acc_id)) => {
+                    let status = unsafe { pjsua_acc_set_registration(acc_id, PJ_TRUE) };
+                    if status == PJ_SUCCESS {
+                        tracing::info!("RetryRegister success for acc_id={}", acc_id);
+                    } else {
+                        tracing::warn!("RetryRegister failed for acc_id={}: {}", acc_id, status);
+                    }
                 }
                 Ok(crate::SipCommand::Mute(ref _call_id, ref _muted)) => {
                     tracing::warn!("Mute not yet implemented in pjsip engine");
@@ -422,6 +495,9 @@ impl PjsuaEngine {
 
     fn hangup_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str) {
         if let Ok(cid) = call_id.parse::<i32>() {
+            if let Ok(mut set) = HUNG_UP_CALLS.get_or_init(|| Mutex::new(HashSet::new())).lock() {
+                set.insert(cid);
+            }
             tracing::info!("Hanging up call: {}", cid);
             if let Err(e) = crate::CallManager::hangup_raw(cid) {
                 tracing::error!("Failed to hangup: {}", e);

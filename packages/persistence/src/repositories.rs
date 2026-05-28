@@ -91,7 +91,7 @@ impl Database {
     ) -> Result<(), PersistenceError> {
         let conn = self.connection();
         conn.execute(
-            "INSERT INTO call_log (id, remote_uri, remote_name, direction, start_time, duration_secs, end_reason)
+            "INSERT OR REPLACE INTO call_log (id, remote_uri, remote_name, direction, start_time, duration_secs, end_reason)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 entry.id,
@@ -102,6 +102,16 @@ impl Database {
                 entry.duration_secs,
                 serde_json::to_string(&entry.end_reason).map(|s| s.trim_matches('"').to_string()).unwrap_or_default(),
             ],
+        )?;
+        self.prune_call_logs()?;
+        Ok(())
+    }
+
+    pub fn prune_call_logs(&self) -> Result<(), PersistenceError> {
+        let conn = self.connection();
+        conn.execute(
+            "DELETE FROM call_log WHERE created_at < datetime('now', '-7 days')",
+            [],
         )?;
         Ok(())
     }

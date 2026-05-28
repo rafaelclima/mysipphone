@@ -12,13 +12,13 @@ LOCAL_PREFIX="${PROJECT_DIR}/pjsip-dist"
 # check if pjsip already installed (system or local)
 if pkg-config --exists libpjproject 2>/dev/null; then
     echo "pjsip already installed (system). Skipping build."
-    exit 0
+    return 0 2>/dev/null || exit 0
 fi
 
 if [ -f "${LOCAL_PREFIX}/lib/pkgconfig/libpjproject.pc" ]; then
     echo "pjsip already installed locally at ${LOCAL_PREFIX}. Skipping build."
     export PKG_CONFIG_PATH="${LOCAL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-    exit 0
+    return 0 2>/dev/null || exit 0
 fi
 
 echo "Downloading pjsip ${PJSIP_VERSION}..."

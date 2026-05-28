@@ -26,7 +26,7 @@ extern "C" {
 pub struct pjsua_config {
     pub max_calls: c_uint,
     pub thread_cnt: c_uint,
-    _opaque: [u8; 2048],
+    _opaque: [u8; 2640],
 }
 
 #[repr(C)]
@@ -290,6 +290,10 @@ extern "C" {
 
     pub fn mysip_call_is_incoming(call_id: c_int) -> c_int;
 
+    pub fn mysip_call_get_last_status(call_id: c_int) -> c_int;
+
+    pub fn mysip_reg_info_get_code(info: *mut pjsua_reg_info) -> c_int;
+
     pub fn mysip_init_callbacks(cfg: *mut pjsua_config) -> c_int;
 
     pub fn mysip_apply_settings(
@@ -297,4 +301,19 @@ extern "C" {
         log_cfg: *mut pjsua_logging_config,
         media_cfg: *mut pjsua_media_config,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_struct_sizes() {
+        assert_eq!(std::mem::size_of::<pjsua_config>(), 2648,
+            "pjsua_config size mismatch: update _opaque padding");
+        assert_eq!(std::mem::size_of::<pjsua_media_config>(), 2048,
+            "pjsua_media_config size mismatch");
+        assert_eq!(std::mem::size_of::<pjsua_logging_config>(), 2048,
+            "pjsua_logging_config size mismatch");
+    }
 }

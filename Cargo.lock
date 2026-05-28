@@ -115,6 +115,7 @@ name = "audio-engine"
 version = "0.1.0"
 dependencies = [
  "alsa",
+ "libc",
  "serde",
  "shared",
  "thiserror 2.0.18",
@@ -1920,6 +1921,7 @@ name = "mysipphone"
 version = "0.1.0"
 dependencies = [
  "audio-engine",
+ "dirs",
  "persistence",
  "serde",
  "serde_json",

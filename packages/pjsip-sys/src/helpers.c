@@ -18,20 +18,13 @@ int mysip_account_add(const char *id,
     cfg.cred_info[0].username = pj_str((char *)username);
     cfg.cred_info[0].data_type = PJSIP_CRED_DATA_PLAIN_PASSWD;
     cfg.cred_info[0].data = pj_str((char *)password);
-    cfg.register_on_acc_add = PJ_FALSE;
+    cfg.register_on_acc_add = PJ_TRUE;
 
     pjsua_acc_id acc_id;
     pj_status_t status = pjsua_acc_add(&cfg, PJ_FALSE, &acc_id);
     if (status != PJ_SUCCESS) {
         *out_acc_id = -1;
         return (int)status;
-    }
-
-    status = pjsua_acc_set_registration(acc_id, PJ_TRUE);
-    if (status != PJ_SUCCESS) {
-        // Account was added successfully; registration will be attempted
-        // asynchronously by the pjsip engine. EBUSY (70013 or 171001) is
-        // benign (port unavailable or already registering).
     }
 
     *out_acc_id = (int)acc_id;
@@ -76,6 +69,12 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
 
 int mysip_call_hangup(int call_id)
 {
+    pjsua_call_info info;
+    pj_status_t ret = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (ret != PJ_SUCCESS) return (int)ret;
+    if (info.state >= PJSIP_INV_STATE_DISCONNECTED) {
+        return 0; // already disconnected, treat as success
+    }
     pj_status_t status = pjsua_call_hangup(
         (pjsua_call_id)call_id, 0, NULL, NULL);
     return (status == PJ_SUCCESS) ? 0 : (int)status;
@@ -175,6 +174,20 @@ int mysip_call_is_incoming(int call_id)
     pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
     if (status != PJ_SUCCESS) return -1;
     return (info.role == PJSIP_ROLE_UAS) ? 1 : 0;
+}
+
+int mysip_reg_info_get_code(pjsua_reg_info *info)
+{
+    if (!info || !info->cbparam) return -1;
+    return info->cbparam->code;
+}
+
+int mysip_call_get_last_status(int call_id)
+{
+    pjsua_call_info info;
+    pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (status != PJ_SUCCESS) return -1;
+    return (int)info.last_status;
 }
 
 int mysip_call_connect_media(int call_id)

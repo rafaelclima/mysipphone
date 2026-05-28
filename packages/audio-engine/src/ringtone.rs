@@ -41,6 +41,43 @@ impl RingtonePlayer {
         self.playing.store(false, Ordering::SeqCst);
     }
 
+    pub fn play_test_tone(device: &str) -> Result<(), AudioError> {
+        use alsa::pcm::{Access, Format, HwParams, PCM};
+        use alsa::ValueOr;
+
+        let pcm = PCM::new(device, alsa::Direction::Playback, false)?;
+        let hw_params = HwParams::any(&pcm)?;
+
+        hw_params.set_channels(1)?;
+        hw_params.set_rate(SAMPLE_RATE, ValueOr::Nearest)?;
+        hw_params.set_format(Format::s16())?;
+        hw_params.set_access(Access::RWInterleaved)?;
+        pcm.hw_params(&hw_params)?;
+
+        let io = pcm.io_i16()?;
+
+        let samples = (SAMPLE_RATE * 400 / 1000) as usize;
+        let mut buf: Vec<i16> = Vec::with_capacity(samples);
+        for i in 0..samples {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            let envelope = if i < samples / 10 {
+                i as f32 / (samples as f32 / 10.0)
+            } else if i > samples - samples / 10 {
+                (samples - i) as f32 / (samples as f32 / 10.0)
+            } else {
+                1.0
+            };
+            let s = (t * 1000.0 * 2.0 * std::f32::consts::PI).sin();
+            buf.push((s * envelope * i16::MAX as f32 * 0.5) as i16);
+        }
+
+        io.writei(&buf)?;
+        drop(io);
+        drop(hw_params);
+        drop(pcm);
+        Ok(())
+    }
+
     fn ringtone_loop(playing: Arc<AtomicBool>) -> Result<(), AudioError> {
         use alsa::pcm::{Access, Format, HwParams, PCM};
         use alsa::ValueOr;

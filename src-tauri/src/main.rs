@@ -3,6 +3,7 @@
 use audio_engine::AudioEngine;
 use sip_engine::SipEngine;
 use std::sync::Arc;
+use tauri::Emitter;
 use tauri::Manager;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -24,9 +25,13 @@ async fn main() {
     let (sip_cmd_tx, sip_cmd_rx) = std::sync::mpsc::channel::<sip_engine::SipCommand>();
     let (call_event_tx, mut call_event_rx) = mpsc::channel::<sip_engine::CallEvent>(256);
     let (audio_cmd_tx, audio_cmd_rx) = mpsc::channel::<audio_engine::AudioCommand>(256);
+    let (hotplug_tx, mut hotplug_rx) = mpsc::channel::<()>(16);
 
     let _sip_engine = SipEngine::new(sip_cmd_rx, call_event_tx.clone());
     let _audio_engine = AudioEngine::new().run(audio_cmd_rx);
+    let _ = audio_cmd_tx
+        .send(audio_engine::AudioCommand::SetHotplugChannel(hotplug_tx))
+        .await;
 
     let app_state = Arc::new(Mutex::new(AppState::new(
         sip_cmd_tx,
@@ -49,86 +54,97 @@ async fn main() {
             }
 
             tokio::spawn(async move {
-                use tauri::Emitter;
-                while let Some(event) = call_event_rx.recv().await {
-                    let (event_name, payload) = match event {
-                        sip_engine::CallEvent::EngineStarted => (
-                            "sip:engine-started",
-                            serde_json::json!({ "type": "EngineStarted" }),
-                        ),
-                        sip_engine::CallEvent::AccountStateChanged {
-                            account_id,
-                            state,
-                        } => (
-                            "sip:account-state",
-                            serde_json::json!({
-                                "type": "AccountStateChanged",
-                                "account_id": account_id,
-                                "state": state,
-                            }),
-                        ),
-                        sip_engine::CallEvent::CallStateChanged {
-                            account_id,
-                            call_id,
-                            state,
-                        } => (
-                            "sip:call-state",
-                            serde_json::json!({
-                                "type": "CallStateChanged",
-                                "account_id": account_id,
-                                "call_id": call_id,
-                                "state": state,
-                            }),
-                        ),
-                        sip_engine::CallEvent::IncomingCall {
-                            account_id,
-                            call_id,
-                            remote_uri,
-                        } => (
-                            "sip:incoming-call",
-                            serde_json::json!({
-                                "type": "IncomingCall",
-                                "account_id": account_id,
-                                "call_id": call_id,
-                                "remote_uri": remote_uri,
-                            }),
-                        ),
-                        sip_engine::CallEvent::DtmfReceived { call_id, digit } => (
-                            "sip:dtmf",
-                            serde_json::json!({
-                                "type": "DtmfReceived",
-                                "call_id": call_id,
-                                "digit": digit,
-                            }),
-                        ),
-                        sip_engine::CallEvent::CallEnded(log_entry) => {
-                            {
-                                let app = handle.state::<Arc<Mutex<AppState>>>();
-                                let app = app.lock().await;
-                                if let Some(ref db) = app.database {
-                                    let _ = db.save_call_log(&log_entry);
-                                }
-                            }
-                            ("sip:call-log", serde_json::json!({
-                                "type": "CallEnded",
-                                "entry": log_entry,
-                            }))
-                        }
-                        sip_engine::CallEvent::Error {
-                            call_id,
-                            message,
-                        } => (
-                            "sip:error",
-                            serde_json::json!({
-                                "type": "Error",
-                                "call_id": call_id,
-                                "message": message,
-                            }),
-                        ),
-                    };
+                loop {
+                    tokio::select! {
+                        event = call_event_rx.recv() => {
+                            let Some(event) = event else { break };
 
-                    tracing::info!(event_name, payload = %payload, "Emitting Tauri event");
-                    let _ = handle.emit(event_name, payload);
+                            let (event_name, payload) = match event {
+                                sip_engine::CallEvent::EngineStarted => (
+                                    "sip:engine-started",
+                                    serde_json::json!({ "type": "EngineStarted" }),
+                                ),
+                                sip_engine::CallEvent::AccountStateChanged {
+                                    account_id,
+                                    state,
+                                } => (
+                                    "sip:account-state",
+                                    serde_json::json!({
+                                        "type": "AccountStateChanged",
+                                        "account_id": account_id,
+                                        "state": state,
+                                    }),
+                                ),
+                                sip_engine::CallEvent::CallStateChanged {
+                                    account_id,
+                                    call_id,
+                                    state,
+                                } => (
+                                    "sip:call-state",
+                                    serde_json::json!({
+                                        "type": "CallStateChanged",
+                                        "account_id": account_id,
+                                        "call_id": call_id,
+                                        "state": state,
+                                    }),
+                                ),
+                                sip_engine::CallEvent::IncomingCall {
+                                    account_id,
+                                    call_id,
+                                    remote_uri,
+                                } => (
+                                    "sip:incoming-call",
+                                    serde_json::json!({
+                                        "type": "IncomingCall",
+                                        "account_id": account_id,
+                                        "call_id": call_id,
+                                        "remote_uri": remote_uri,
+                                    }),
+                                ),
+                                sip_engine::CallEvent::DtmfReceived { call_id, digit } => (
+                                    "sip:dtmf",
+                                    serde_json::json!({
+                                        "type": "DtmfReceived",
+                                        "call_id": call_id,
+                                        "digit": digit,
+                                    }),
+                                ),
+                                sip_engine::CallEvent::CallEnded(log_entry) => {
+                                    {
+                                        let app = handle.state::<Arc<Mutex<AppState>>>();
+                                        let app = app.lock().await;
+                                        if let Some(ref db) = app.database {
+                                            let _ = db.save_call_log(&log_entry);
+                                        }
+                                    }
+                                    ("sip:call-log", serde_json::json!({
+                                        "type": "CallEnded",
+                                        "entry": log_entry,
+                                    }))
+                                }
+                                sip_engine::CallEvent::Error {
+                                    call_id,
+                                    message,
+                                } => (
+                                    "sip:error",
+                                    serde_json::json!({
+                                        "type": "Error",
+                                        "call_id": call_id,
+                                        "message": message,
+                                    }),
+                                ),
+                            };
+
+                            tracing::info!(event_name, payload = %payload, "Emitting Tauri event");
+                            let _ = handle.emit(event_name, payload);
+                        }
+                        _ = hotplug_rx.recv() => {
+                            tracing::info!("Audio devices changed, notifying frontend");
+                            let _ = handle.emit("sip:devices-changed", serde_json::json!({
+                                "type": "DeviceListChanged",
+                            }));
+                        }
+                    }
                 }
             });
 
@@ -158,6 +174,7 @@ async fn main() {
             commands::set_audio_ringtone_device,
             commands::play_ringtone,
             commands::stop_ringtone,
+            commands::play_test_tone,
             commands::set_audio_mute,
         ])
         .run(tauri::generate_context!())

@@ -6,4 +6,3 @@ pjsip-dist/
 *.deb
 *.log
 .env
-*.png

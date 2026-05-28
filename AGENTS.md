@@ -24,6 +24,11 @@ NEVER declare these structs with full field layouts in Rust. Instead:
 - Write ALL field access through C helper functions in `helpers.c`
 - Use `#[no_mangle] pub unsafe extern "C"` functions for callbacks linked by name from C bridge functions
 
+⚠️ **CRITICAL:** The `_opaque` padding size MUST match the real C struct size exactly (or be larger).
+A too-small opaque = buffer overflow → UB → `pjsua_init` fails with `PJ_EINVAL` (70004).
+This was the root cause of the "registration works in dev but not after install" bug.
+Verified via `cargo test -p pjsip-sys`.
+
 ## Callback Architecture
 - C bridge functions (in `helpers.c`) match the exact `pjsua_callback` struct field layout
 - Bridge functions extract simple values then call `rust_on_*` functions defined in Rust
@@ -63,15 +68,35 @@ NEVER declare these structs with full field layouts in Rust. Instead:
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
-2. **EBUSY on registration** — `mysip_account_add()` calls `pjsua_acc_set_registration()` which
-   returns 171001 (PJSIP_EBUSY) because `pjsua_acc_add()` already starts registration. The
-   registration actually completes successfully (200 OK). The Rust frontend shows a spurious
-   `registration_failed` event followed by `registered`. To fix: remove the explicit
-   `pjsua_acc_set_registration()` call in `mysip_account_add()`.
-3. **Hangup after BYE** — If the remote hangs up first, the Rust hangup command fails with
-   171140 (call already disconnected). Harmless but logged as ERROR.
-4. **Call end_reason always RemoteHangup** — `rust_on_call_state` on `Ended` state always sets
-   `end_reason: RemoteHangup` regardless of who hung up. Needs pjsua call info inspection.
+
+## FFI Struct Sizes (pjsip 2.17, x86_64)
+These MUST match the Rust `_opaque` padding exactly:
+- `pjsua_config`        = **2648** bytes (Rust: `max_calls: c_uint + thread_cnt: c_uint + [u8; 2640]`)
+- `pjsua_logging_config` = **48** bytes (Rust: `[u8; 2048]` — oversize OK)
+- `pjsua_media_config`   = **832** bytes (Rust: `[u8; 2048]` — oversize OK)
+- `pjsua_acc_config`     = **4960** bytes (declared with full fields in Rust — only used via C helper)
+- `pjsua_callback`       = **464** bytes (fully accessed via C helpers)
+
+**CRITICAL:** If `_opaque` is too small, `pjsua_config_default()` or `mysip_apply_settings()`
+writes past buffer → corrupts memory → `pjsua_init` returns `PJ_EINVAL` (70004).
+Verify with: `cargo test -p pjsip-sys`
+
+## Window Config
+- Size: 320×600 (`resizable: true`) — was 240×520 (`resizable: false`). Changed to give more
+  breathing room and allow user resize.
+- `decorations: false` — no window chrome, phone-like frameless window
+- If AppImage window appears smaller than dev, the config is identical; discrepancy may stem
+  from Tauri 2 dev server behavior vs production binary.
+
+## Icon Installation (per-user, no sudo)
+- Desktop file uses **absolute path** to PNG icon (not icon name lookup) because `~/.local/share`
+  may not be in `XDG_DATA_DIRS` on all distros.
+- Icon must be regenerated when source changes: run ImageMagick downscale from
+  `resources/mysipphone.png` (500×500 RGBA) into 7 sizes in `src-tauri/icons/`.
+- `install.sh` copies to `~/.local/share/icons/hicolor/*/apps/mysipphone.png` and runs
+  `gtk-update-icon-cache` to refresh the icon cache.
+- The `.desktop` `StartupWMClass=com.mysipphone.desktop` matches Tauri's actual WM_CLASS
+  (set from app identifier), so the dock picks up the icon for running windows.
 
 ## Build Setup
 
@@ -107,6 +132,8 @@ cargo check                      # whole workspace
 | What | Command (from project root) |
 |------|-----------------------------|
 | Dev (full Tauri) | `cargo tauri dev` |
+| Install (system) | `./scripts/install.sh` |
+| Build AppImage | `./scripts/build-appimage.sh` |
 | Frontend dev only | `npm run dev` (in `frontend/`) |
 | Rust lint | `cargo clippy --all-targets -- -D warnings` |
 | Frontend lint | `npm run lint` (in `frontend/`) |
@@ -114,12 +141,13 @@ cargo check                      # whole workspace
 | Frontend build | `npm run build` (in `frontend/`) — runs `tsc && vite build` |
 
 ## Pre-Commit
-1. `cargo check`
-2. `cargo clippy --all-targets -- -D warnings`
-3. `npm run lint` (in `frontend/`)
-4. `npx tsc --noEmit` (in `frontend/`)
-5. Verify no mocked SIP/audio logic was introduced
-6. Verify no `pjsua_callback` or other pjsip structs are declared with full fields in Rust
+1. `cargo test -p pjsip-sys` (verify struct sizes)
+2. `cargo check`
+3. `cargo clippy --all-targets -- -D warnings`
+4. `npm run lint` (in `frontend/`)
+5. `npx tsc --noEmit` (in `frontend/`)
+6. Verify no mocked SIP/audio logic was introduced
+7. Verify no `pjsua_callback` or other pjsip structs are declared with full fields in Rust
 
 ## Architecture Rules
 - `sip-engine` on dedicated `std::thread("pjsip-engine")`; communicates via `tokio::sync::mpsc`
@@ -134,7 +162,7 @@ cargo check                      # whole workspace
 - ALL pjsip C struct access goes through C helpers in `helpers.c`, never through Rust struct field access
 - Callback registration: C bridge functions (static in helpers.c) call `#[no_mangle] extern "C"` Rust functions
 - Mute is handled via audio-engine (`AudioCommand::SetMute`), NOT via pjsip
-- Database path: `/tmp/mysipphone.db` (file-based, persistent across restarts)
+- Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
 
 ## File Layout
 ```
@@ -145,6 +173,7 @@ packages/
   persistence/     SQLite repos (Account, Contact, CallLog, etc.)
   shared/          zero-dep types crate (enums, structs)
 src-tauri/         Tauri shell: commands.rs, state.rs, main.rs
+  icons/           7 PNG icon sizes (16×16 to 256×256), regenerated from resources/mysipphone.png
 frontend/          React app (Vite config, eslint.config.js, i18n/)
   src/
     store/         Zustand stores (useAuthStore, useCallStore, useContactStore)
@@ -152,8 +181,9 @@ frontend/          React app (Vite config, eslint.config.js, i18n/)
     components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
     i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
     theme.ts       MUI dark/light theme
-scripts/           setup-pjsip.sh, install-deps.sh, set-env.sh
+scripts/           setup-pjsip.sh, install-deps.sh, set-env.sh, install.sh, build-appimage.sh
 pjsip-dist/       local pjsip install (not in git)
+resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
 ```
 
 ## Notable Quirks
@@ -162,7 +192,20 @@ pjsip-dist/       local pjsip install (not in git)
 - Vite runs on port 1420, HMR on 1421
 - `cargo tauri dev` requires GTK3 + WebKit2GTK + libayatana-appindicator3 (system packages)
 - Frontend `package.json` is in `frontend/`, not workspace root
-- Database is at `/tmp/mysipphone.db` — will be wiped on system reboot
+- Database is at `~/.local/share/mysipphone/mysipphone.db` (survives reboot, per-user)
 - SIP account password stored in plaintext in SQLite
-- `CallLogEntry.end_reason` is always `RemoteHangup` regardless of who hung up (needs pjsua_call_info inspection to fix)
+- `CallLogEntry.end_reason` is now determined by tracking locally-initiated hangup (`HUNG_UP_CALLS` HashSet) and SIP status code (486=Busy, 480/487=NoAnswer, 603=Rejected). Falls back to `RemoteHangup`.
 - Contact form uses "number/extension" field, auto-constructs `sip:ramal@dominio` from registered account
+- Audio hotplug polls every 2s via `AudioCommand::SetHotplugChannel`. Emits `sip:devices-changed` Tauri event on change.
+- SIP reconnection uses exponential backoff (1s, 2s, 4s, ... 60s max) via `SipCommand::RetryRegister`. Retry thread spawned from `rust_on_reg_state2` when status code ≥ 400.
+- Registration status code is extracted via `mysip_reg_info_get_code()` C helper (reads `info->cbparam->code`).
+- Frontend animations use Framer Motion `AnimatePresence` with fade+slide on route changes.
+- CSV import: hidden `<input type="file" accept=".csv">`, parse client-side, bulk-import via `add_contact` command.
+- Settings audio section: test tone button per speaker, default badge chips, hotplug auto-refresh.
+- Binary RUNPATH `$ORIGIN/../lib/mysipphone` (set in `src-tauri/build.rs`) to find pjsip .so files
+  per-user install. Pjsip `.so` files themselves have `$ORIGIN` RPATH via `patchelf` in install.sh.
+- `setup-pjsip.sh` uses `return 0 2>/dev/null || exit 0` instead of plain `exit 0` so it can be
+  safely `source`d by `install.sh` without killing the parent script.
+- `install.sh` creates `~/.local/share/icons/hicolor/index.theme` if missing, then runs
+  `gtk-update-icon-cache` so the desktop environment finds the app icon.
+- The `.desktop` `Icon` uses absolute path to bypass `XDG_DATA_DIRS` lookup issues.

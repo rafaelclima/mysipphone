@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { AnimatePresence, motion } from "framer-motion";
 import PhoneShell from "./components/PhoneShell";
 import Dialer from "./views/Dialer";
 import ActiveCall from "./views/ActiveCall";
@@ -13,7 +14,22 @@ import AccountSetup from "./views/AccountSetup";
 import { useAuthStore, AccountConfig } from "./store/useAuthStore";
 import { useCallStore, CallState } from "./store/useCallStore";
 
+function AnimatedPage({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.18, ease: "easeInOut" }}
+      style={{ height: "100%", display: "flex", flexDirection: "column" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function App() {
+  const location = useLocation();
   const navigate = useNavigate();
   const setAccount = useAuthStore((s) => s.setAccount);
   const incomingCall = useCallStore((s) => s.incomingCall);
@@ -115,8 +131,8 @@ function App() {
     return (
       <PhoneShell>
         <Routes>
-          <Route path="/incoming" element={<IncomingCall />} />
-          <Route path="*" element={<IncomingCall />} />
+          <Route path="/incoming" element={<AnimatedPage><IncomingCall /></AnimatedPage>} />
+          <Route path="*" element={<AnimatedPage><IncomingCall /></AnimatedPage>} />
         </Routes>
       </PhoneShell>
     );
@@ -124,14 +140,16 @@ function App() {
 
   return (
     <PhoneShell>
-      <Routes>
-        <Route path="/" element={<Dialer />} />
-        <Route path="/call/:id" element={<ActiveCall />} />
-        <Route path="/contacts" element={<Contacts />} />
-        <Route path="/history" element={<CallHistory />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/account-setup" element={<AccountSetup />} />
-      </Routes>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          <Route path="/" element={<AnimatedPage><Dialer /></AnimatedPage>} />
+          <Route path="/call/:id" element={<AnimatedPage><ActiveCall /></AnimatedPage>} />
+          <Route path="/contacts" element={<AnimatedPage><Contacts /></AnimatedPage>} />
+          <Route path="/history" element={<AnimatedPage><CallHistory /></AnimatedPage>} />
+          <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
+          <Route path="/account-setup" element={<AnimatedPage><AccountSetup /></AnimatedPage>} />
+        </Routes>
+      </AnimatePresence>
     </PhoneShell>
   );
 }

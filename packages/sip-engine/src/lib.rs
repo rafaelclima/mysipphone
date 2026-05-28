@@ -29,6 +29,7 @@ pub enum SipCommand {
     SendDtmf(String, String),
     Answer(String),
     Reject(String),
+    RetryRegister(i32),
     Shutdown,
 }
 

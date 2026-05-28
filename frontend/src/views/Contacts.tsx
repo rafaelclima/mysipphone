@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Box, List, ListItem, ListItemText, ListItemAvatar, Avatar, Typography,
   TextField, InputAdornment, IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, Button,
+  DialogActions, Button, Alert,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import FileUploadIcon from "@mui/icons-material/FileUpload";
 import { invoke } from "@tauri-apps/api/core";
 import { useNavigate } from "react-router-dom";
 import { useContactStore, Contact } from "../store/useContactStore";
@@ -39,6 +40,59 @@ function Contacts() {
   const [form, setForm] = useState({ name: "", extension: "", phone_number: "" });
 
   const domain = extractDomain();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importContacts, setImportContacts] = useState<Contact[]>([]);
+  const [importError, setImportError] = useState("");
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split("\n").map((l) => l.trim()).filter((l) => l);
+      const parsed: Contact[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const parts = lines[i].split(",").map((p) => p.trim());
+        if (parts.length < 2 || !parts[0] || !parts[1]) {
+          setImportError(`Line ${i + 1}: need at least name,extension`);
+          return;
+        }
+        const ext = parts[1];
+        const sip_uri = ext.startsWith("sip:") ? ext : domain ? `sip:${ext}@${domain}` : `sip:${ext}`;
+        parsed.push({
+          id: crypto.randomUUID(),
+          name: parts[0],
+          sip_uri,
+          phone_number: parts[2] || undefined,
+        });
+      }
+      if (parsed.length === 0) {
+        setImportError("No valid contacts found in CSV");
+        return;
+      }
+      setImportContacts(parsed);
+      setImportDialogOpen(true);
+    };
+    reader.onerror = () => setImportError("Failed to read file");
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleImportConfirm = async () => {
+    for (const c of importContacts) {
+      try {
+        await invoke("add_contact", { contact: c });
+        addContact(c);
+      } catch (err) {
+        console.error(`Failed to import ${c.name}:`, err);
+      }
+    }
+    setImportDialogOpen(false);
+    setImportContacts([]);
+  };
 
   useEffect(() => {
     invoke<Contact[]>("get_contacts")
@@ -113,9 +167,21 @@ function Contacts() {
     <Box>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
         <Typography variant="h6">{t("contacts.title")}</Typography>
-        <IconButton size="small" onClick={openAdd} sx={{ bgcolor: "primary.main", color: "white", "&:hover": { bgcolor: "primary.dark" } }}>
-          <AddIcon />
-        </IconButton>
+        <Box sx={{ display: "flex", gap: 0.5 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            style={{ display: "none" }}
+            onChange={handleFileSelect}
+          />
+          <IconButton size="small" onClick={() => fileInputRef.current?.click()} color="primary">
+            <FileUploadIcon />
+          </IconButton>
+          <IconButton size="small" onClick={openAdd} sx={{ bgcolor: "primary.main", color: "white", "&:hover": { bgcolor: "primary.dark" } }}>
+            <AddIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       <TextField
@@ -181,6 +247,44 @@ function Contacts() {
           {search ? t("contacts.no_results") : t("contacts.empty")}
         </Typography>
       )}
+
+      {importError && (
+        <Alert severity="error" sx={{ mb: 1, py: 0.5, "& .MuiAlert-message": { fontSize: "0.8rem" } }}>
+          {importError}
+        </Alert>
+      )}
+
+      <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{t("contacts.import_title")}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            {importContacts.length} {t("contacts.import_confirm")}
+          </Typography>
+          <List dense sx={{ maxHeight: 200, overflow: "auto" }}>
+            {importContacts.slice(0, 20).map((c) => (
+              <ListItem key={c.id} disableGutters sx={{ py: 0 }}>
+                <ListItemText
+                  primary={c.name}
+                  secondary={c.sip_uri}
+                  primaryTypographyProps={{ fontSize: "0.8rem" }}
+                  secondaryTypographyProps={{ fontSize: "0.75rem" }}
+                />
+              </ListItem>
+            ))}
+            {importContacts.length > 20 && (
+              <Typography variant="caption" color="text.secondary">
+                ...and {importContacts.length - 20} more
+              </Typography>
+            )}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportDialogOpen(false)}>{t("contacts.cancel")}</Button>
+          <Button onClick={handleImportConfirm} variant="contained">
+            {t("contacts.import_action")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>{editing ? t("contacts.edit") : t("contacts.add")}</DialogTitle>

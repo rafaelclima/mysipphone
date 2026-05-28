@@ -90,7 +90,7 @@ pub enum SipTransport {
     Tls,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudioDevice {
     pub id: String,
     pub name: String,

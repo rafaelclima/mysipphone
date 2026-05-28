@@ -125,3 +125,20 @@ Device enumeration runs synchronously on the Tauri command thread via direct ALS
 - SIP over local network only
 - No external network access required
 - No cloud dependencies
+
+## FFI Struct Integrity
+
+Rust declares pjsip C structs as opaque types with `_opaque: [u8; N]` padding.
+The padding MUST match or exceed the real C struct size. If too small,
+`pjsua_config_default()` or `mysip_apply_settings()` writes past buffer →
+UB → `pjsua_init` returns `PJ_EINVAL` (70004).
+
+**Current critical sizes (pjsip 2.17, x86_64):**
+
+| Struct | C Size | Rust padding | File |
+|--------|--------|-------------|------|
+| `pjsua_config` | 2648 | `[u8; 2640]` | `packages/pjsip-sys/src/lib.rs:29` |
+
+Verify with `cargo test -p pjsip-sys`. If struct sizes change (pjsip update),
+run the C program in `scripts/check_struct_sizes.c` to measure new values.
+
