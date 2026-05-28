@@ -52,6 +52,14 @@ NEVER declare these structs with full field layouts in Rust. Instead:
 - The software clock (`Sound port uses internal (or software) clock`) handles drift fine at 8kHz
 - `channel_count = 2` (stereo) works with the 8kHz config
 
+## Pending / To Test
+- **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
+- **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
+- **Call history**: Call log saving on end, display with direction/end_reason, grouped by date. Verify data persists across restarts.
+- **Device themes**: iPhone/Galaxy/Pixel switch — see M6b in ROADMAP.md
+- **Call from history**: Phone icon on history rows — see M6b in ROADMAP.md
+- **Call Pickup `*8#`** : Button in Dialer, needs URI wrapping `sip:*8%23@dominio` — see M6b in ROADMAP.md
+
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
@@ -62,6 +70,8 @@ NEVER declare these structs with full field layouts in Rust. Instead:
    `pjsua_acc_set_registration()` call in `mysip_account_add()`.
 3. **Hangup after BYE** — If the remote hangs up first, the Rust hangup command fails with
    171140 (call already disconnected). Harmless but logged as ERROR.
+4. **Call end_reason always RemoteHangup** — `rust_on_call_state` on `Ended` state always sets
+   `end_reason: RemoteHangup` regardless of who hung up. Needs pjsua call info inspection.
 
 ## Build Setup
 
@@ -70,11 +80,18 @@ NEVER declare these structs with full field layouts in Rust. Instead:
 ./scripts/setup-pjsip.sh
 ```
 
-### ALSA headers (one-time, no `libasound2-dev` installed)
+### ALSA headers (one-time, if not installed)
 ```bash
+sudo apt-get install libasound2-dev
+# Or manual extraction:
 apt-get download libasound2-dev && mkdir -p /tmp/alsa-dev && dpkg-deb -x libasound2-dev_*.deb /tmp/alsa-dev
 mkdir -p /tmp/alsa-pc
-# alsa.pc: prefix=/tmp/alsa-dev/usr, libdir=${prefix}/lib/x86_64-linux-gnu, includedir=${prefix}/include, Libs: -L${libdir} -lasound, Cflags: -I${includedir}
+# Create /tmp/alsa-pc/alsa.pc:
+#   prefix=/tmp/alsa-dev/usr
+#   libdir=${prefix}/lib/x86_64-linux-gnu
+#   includedir=${prefix}/include
+#   Libs: -L${libdir} -lasound
+#   Cflags: -I${includedir}
 ```
 
 ### Build (every shell)
@@ -100,8 +117,9 @@ cargo check                      # whole workspace
 1. `cargo check`
 2. `cargo clippy --all-targets -- -D warnings`
 3. `npm run lint` (in `frontend/`)
-4. Verify no mocked SIP/audio logic was introduced
-5. Verify no `pjsua_callback` or other pjsip structs are declared with full fields in Rust
+4. `npx tsc --noEmit` (in `frontend/`)
+5. Verify no mocked SIP/audio logic was introduced
+6. Verify no `pjsua_callback` or other pjsip structs are declared with full fields in Rust
 
 ## Architecture Rules
 - `sip-engine` on dedicated `std::thread("pjsip-engine")`; communicates via `tokio::sync::mpsc`
@@ -115,6 +133,8 @@ cargo check                      # whole workspace
 - Tauri command handlers take `State<'_, Arc<Mutex<AppState>>>` and clone the mpsc sender
 - ALL pjsip C struct access goes through C helpers in `helpers.c`, never through Rust struct field access
 - Callback registration: C bridge functions (static in helpers.c) call `#[no_mangle] extern "C"` Rust functions
+- Mute is handled via audio-engine (`AudioCommand::SetMute`), NOT via pjsip
+- Database path: `/tmp/mysipphone.db` (file-based, persistent across restarts)
 
 ## File Layout
 ```
@@ -125,7 +145,13 @@ packages/
   persistence/     SQLite repos (Account, Contact, CallLog, etc.)
   shared/          zero-dep types crate (enums, structs)
 src-tauri/         Tauri shell: commands.rs, state.rs, main.rs
-frontend/          React app (Vite config, eslint.config.js)
+frontend/          React app (Vite config, eslint.config.js, i18n/)
+  src/
+    store/         Zustand stores (useAuthStore, useCallStore, useContactStore)
+    views/         Page components (Dialer, ActiveCall, IncomingCall, Contacts, CallHistory, Settings, AccountSetup)
+    components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
+    i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
+    theme.ts       MUI dark/light theme
 scripts/           setup-pjsip.sh, install-deps.sh, set-env.sh
 pjsip-dist/       local pjsip install (not in git)
 ```
@@ -136,3 +162,7 @@ pjsip-dist/       local pjsip install (not in git)
 - Vite runs on port 1420, HMR on 1421
 - `cargo tauri dev` requires GTK3 + WebKit2GTK + libayatana-appindicator3 (system packages)
 - Frontend `package.json` is in `frontend/`, not workspace root
+- Database is at `/tmp/mysipphone.db` — will be wiped on system reboot
+- SIP account password stored in plaintext in SQLite
+- `CallLogEntry.end_reason` is always `RemoteHangup` regardless of who hung up (needs pjsua_call_info inspection to fix)
+- Contact form uses "number/extension" field, auto-constructs `sip:ramal@dominio` from registered account

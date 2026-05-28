@@ -7,7 +7,7 @@
 - [x] ROADMAP.md
 - [x] Cargo workspace
 - [x] Rust crate scaffolds
-- [x] Frontend scaffold (React + Vite + MUI 3)
+- [x] Frontend scaffold (React + Vite + MUI 6)
 - [x] Tauri shell
 - [x] pjsip build script
 
@@ -15,14 +15,14 @@
 
 ## M1 — UI Framework (done)
 - [x] PhoneShell component (realistic smartphone frame)
-- [x] Dark/Light theme (MUI 3)
+- [x] Dark/Light theme (MUI)
 - [x] React Router (dialer, contacts, history, settings)
 - [x] Zustand stores
-- [x] Placeholder screens with mock data
 - [x] Status bar with time, signal, battery
 - [x] Navigation bar (Dialer, Contacts, History, Settings)
+- [x] i18n (EN / PT-BR) with language selector in Settings
 
-**Deliverable**: App launches showing a realistic smartphone with working navigation.
+**Deliverable**: App launches showing a realistic smartphone with working navigation and translations.
 
 ---
 
@@ -34,8 +34,8 @@
 - [x] Global callback bridge (pjsip C → Rust channel)
 - [x] Tauri event system: `sip:account-state` events flow to frontend
 - [x] SIP thread with graceful shutdown
-- [x] Settings UI shows registration status
-- [x] AccountSetup form → Tauri command → real pjsip registration
+- [x] Account persists across restarts (file-based SQLite at `/tmp/mysipphone.db`)
+- [x] Transport fallback: port 5060 → port 0 if busy
 
 **Deliverable**: User enters SIP credentials, sees registration status in real time.
 
@@ -64,37 +64,56 @@
 
 ---
 
-## M5 — Call Features
-- Hold
-- Mute
-- Transfer (attended + blind)
-- Multiple simultaneous lines
-- Call history persistence
-- Call log view in UI
+## M5 — Call Features (done)
+- [x] Hold / Resume
+- [x] Mute
+- [x] Blind Transfer (with cancel ✕ button)
+- [x] Multiple simultaneous lines with swap
+- [x] Call history persistence (SQLite on call end)
+- [x] Call log view in UI (grouped by date, direction icons)
+- [x] Conference bridge connect (bidirectional audio on media state)
 
 **Deliverable**: Professional call features working.
 
 ---
 
-## M6 — Full UI
-- Contacts (CRUD, import)
-- Call history (grouped by date)
-- Settings (accounts, audio, appearance)
-- Account setup wizard
-- Incoming call screen with accept/decline
-- Animations and transitions
+## M6 — Full UI (done)
+- [x] Contacts CRUD (add, edit, delete, call)
+- [x] Auto SIP URI from extension (sip:ramal@dominio)
+- [x] Call history (grouped by date, direction icons, duration)
+- [x] Settings (SIP account, audio devices, dark mode, language)
+- [x] Account setup wizard (AccountSetup.tsx)
+- [x] Incoming call screen with accept/decline (+ keyboard Enter/Escape)
+- [x] Quit button at bottom of Settings
 
 **Deliverable**: Feature-complete softphone UI.
 
 ---
 
-## M7 — Polish & Stability
-- Audio device hotplug (USB/Bluetooth)
-- Stream recovery on glitch
-- Reconnect handling on SIP transport loss
-- Error recovery edge cases
-- Performance profiling
-- Release build optimization
-- Package for distribution (.deb, .AppImage)
+## M6b — UX Enhancements (pending)
+- [ ] **Device themes**: iPhone, Galaxy, Pixel mockup (notch, corners, status bar)
+- [ ] **Call from history**: Phone icon on each call log entry → invokes `make_call`
+- [ ] **Call Pickup shortcut**: `*8#` button in Dialer via `sip:*8%23@dominio`
+- [ ] **Animations/transitions** between routes (fade/slide)
+- [ ] Import contacts (CSV)
+
+---
+
+## M7 — Polish & Stability (pending)
+- [ ] Audio device hotplug (USB/Bluetooth detection)
+- [ ] Stream recovery on glitch
+- [ ] Reconnect handling on SIP transport loss
+- [ ] Error recovery edge cases
+- [ ] Performance profiling
+- [ ] Release build optimization
+- [ ] Package for distribution (.deb, .AppImage)
 
 **Deliverable**: Production-ready release.
+
+---
+
+## Extra Ideas (not prioritized)
+- Multiple SIP accounts (register more than one, choose which to call from)
+- Conference (merge two calls)
+- Custom ringtone per contact
+- Contacts import (CSV/vCard)
