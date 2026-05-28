@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { Box, Button, Typography, IconButton } from "@mui/material";
 import CallIcon from "@mui/icons-material/Call";
 import BackspaceIcon from "@mui/icons-material/Backspace";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
+import { useAuthStore } from "../store/useAuthStore";
 
 const DIAL_PAD = [
   { digit: "1", letters: "" },
@@ -19,6 +21,18 @@ const DIAL_PAD = [
   { digit: "0", letters: "+" },
   { digit: "#", letters: "" },
 ];
+
+function buildSipUri(raw: string): string {
+  const account = useAuthStore.getState().account;
+  const domain = account
+    ? (account.sip_uri || account.registrar || "").replace(/^sip:/, "").replace(/[^@]+@/, "")
+    : "";
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("sip:")) return trimmed;
+  if (trimmed.includes("@")) return `sip:${trimmed}`;
+  const encoded = trimmed.replace(/#/g, "%23");
+  return domain ? `sip:${encoded}@${domain}` : `sip:${encoded}`;
+}
 
 function Dialer() {
   const { t } = useTranslation();
@@ -36,10 +50,20 @@ function Dialer() {
 
   const handleCall = async () => {
     if (!number) return;
+    const uri = buildSipUri(number);
     try {
-      await invoke("make_call", { uri: number });
+      await invoke("make_call", { uri });
     } catch (err) {
       console.error("Call failed:", err);
+    }
+  };
+
+  const handlePickup = async () => {
+    const uri = buildSipUri("*8#");
+    try {
+      await invoke("make_call", { uri });
+    } catch (err) {
+      console.error("Pickup failed:", err);
     }
   };
 
@@ -49,7 +73,7 @@ function Dialer() {
         e.preventDefault();
         const n = numberRef.current;
         if (n) {
-          invoke("make_call", { uri: n }).catch(console.error);
+          invoke("make_call", { uri: buildSipUri(n) }).catch(console.error);
         }
         return;
       }
@@ -165,7 +189,20 @@ function Dialer() {
           >
             <CallIcon sx={{ fontSize: 28 }} />
           </IconButton>
-          <Box sx={{ width: 40 }} />
+          <IconButton
+            onClick={handlePickup}
+            size="small"
+            sx={{
+              width: 40,
+              height: 40,
+              bgcolor: "warning.main",
+              color: "white",
+              "&:hover": { bgcolor: "warning.dark" },
+            }}
+            title={t("dialer.pickup")}
+          >
+            <PhoneInTalkIcon sx={{ fontSize: 20 }} />
+          </IconButton>
         </Box>
       </Box>
   );

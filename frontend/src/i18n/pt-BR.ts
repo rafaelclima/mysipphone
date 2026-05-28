@@ -26,6 +26,7 @@ const pt_BR: Record<string, string> = {
   "account_setup.validation": "SIP URI, Registrar e Usuário são obrigatórios",
 
   "dialer.enter_number": "Digite o número",
+  "dialer.pickup": "Puxar Ligação",
 
   "call.connecting": "Conectando...",
   "call.mute": "Mudo",
