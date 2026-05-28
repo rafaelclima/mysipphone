@@ -4,6 +4,7 @@ import CallIcon from "@mui/icons-material/Call";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { useCallStore } from "../store/useCallStore";
 import { useTranslation } from "../i18n";
 
@@ -34,6 +35,7 @@ function IncomingCall() {
   const handleAnswer = async () => {
     try {
       await invoke("answer", { callId: incomingCall.id });
+      emit("popup:dismiss", {}).catch(() => {});
       setIncomingCall(null);
       navigate(`/call/${incomingCall.id}`);
     } catch (err) {
@@ -44,6 +46,7 @@ function IncomingCall() {
   const handleReject = async () => {
     try {
       await invoke("reject", { callId: incomingCall.id });
+      emit("popup:dismiss", {}).catch(() => {});
     } catch (err) {
       console.error("Reject failed:", err);
     }

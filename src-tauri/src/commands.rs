@@ -2,7 +2,7 @@ use audio_engine::AudioCommand;
 use shared::{AccountConfig, AudioDevice, Contact};
 use sip_engine::SipCommand;
 use tauri::State;
-use crate::AppState;
+use crate::{AppState, state::IncomingCallInfo};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -185,6 +185,14 @@ pub async fn get_active_account(
     } else {
         Ok(None)
     }
+}
+
+#[tauri::command]
+pub async fn get_incoming_call_info(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Option<IncomingCallInfo>, String> {
+    let app = state.lock().await;
+    Ok(app.incoming_call_info.clone())
 }
 
 #[tauri::command]

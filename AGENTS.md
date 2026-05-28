@@ -163,6 +163,7 @@ cargo check                      # whole workspace
 - Callback registration: C bridge functions (static in helpers.c) call `#[no_mangle] extern "C"` Rust functions
 - Mute is handled via audio-engine (`AudioCommand::SetMute`), NOT via pjsip
 - Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
+- **Incoming call popup**: Rust creates a secondary `WebviewWindow("incoming-popup")` at top-right (300×180, `always_on_top`, no decorations, `skip_taskbar`). Popup reads call info via `invoke("get_incoming_call_info")`. Answer/Reject emits `popup:answer`/`popup:reject` events to main window. Auto-closes on call state leaving `Ringing` or via `popup:dismiss` event. Capabilities include `"incoming-popup"` window with `allow-close` and `allow-set-focus`.
 
 ## File Layout
 ```

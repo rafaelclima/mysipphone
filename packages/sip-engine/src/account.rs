@@ -77,6 +77,7 @@ pub unsafe extern "C" fn rust_on_incoming_call(
     acc_id: c_int,
     call_id: c_int,
 ) {
+    tracing::info!("rust_on_incoming_call: acc_id={}, call_id={}", acc_id, call_id);
     let mut buf = [0i8; 512];
     let remote_uri = if mysip_call_get_remote_uri(call_id, buf.as_mut_ptr(), 512) == 0 {
         CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
@@ -85,12 +86,19 @@ pub unsafe extern "C" fn rust_on_incoming_call(
     };
     if let Some(tx) = EVENT_TX.get() {
         if let Ok(guard) = tx.lock() {
-            let _ = guard.try_send(CallEvent::IncomingCall {
+            let result = guard.try_send(CallEvent::IncomingCall {
                 account_id: acc_id,
                 call_id: call_id as i64,
                 remote_uri,
             });
+            if let Err(e) = result {
+                tracing::error!("try_send failed for incoming call {}: {:?}", call_id, e);
+            }
+        } else {
+            tracing::error!("EVENT_TX lock failed for incoming call {}", call_id);
         }
+    } else {
+        tracing::error!("EVENT_TX not initialized for incoming call {}", call_id);
     }
 }
 
@@ -536,7 +544,8 @@ impl PjsuaEngine {
         if let Ok(cid) = call_id.parse::<i32>() {
             tracing::info!("Rejecting call: {}", cid);
             if let Err(e) = crate::CallManager::reject_raw(cid) {
-                tracing::error!("Failed to reject call: {}", e);
+                tracing::error!("Failed to reject call (486): {}, trying hangup", e);
+                let _ = crate::CallManager::hangup_raw(cid);
             }
         }
     }

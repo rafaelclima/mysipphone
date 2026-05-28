@@ -217,6 +217,7 @@ static void c_on_call_state(pjsua_call_id call_id, pjsip_event *e)
     (void)e;
     pjsua_call_info info;
     if (pjsua_call_get_info(call_id, &info) == PJ_SUCCESS) {
+        fprintf(stderr, "[c_on_call_state] call_id=%d state=%d\n", (int)call_id, info.state);
         rust_on_call_state((int)call_id, info.state);
     }
 }
@@ -226,6 +227,7 @@ static void c_on_incoming_call(pjsua_acc_id acc_id,
                                 pjsip_rx_data *rdata)
 {
     (void)rdata;
+    fprintf(stderr, "[c_on_incoming_call] acc_id=%d call_id=%d\n", (int)acc_id, (int)call_id);
     rust_on_incoming_call((int)acc_id, (int)call_id);
 }
 

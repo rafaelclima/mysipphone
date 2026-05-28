@@ -1,11 +1,14 @@
 {
   "identifier": "default",
   "description": "Default capability granting core permissions",
-  "windows": ["main"],
+  "windows": ["main", "popup-*"],
   "permissions": [
     "core:event:default",
     "core:app:default",
     "core:window:default",
-    "core:webview:default"
+    "core:webview:default",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-hide"
   ]
 }

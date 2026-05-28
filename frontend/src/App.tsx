@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AnimatePresence, motion } from "framer-motion";
 import PhoneShell from "./components/PhoneShell";
 import Dialer from "./views/Dialer";
 import ActiveCall from "./views/ActiveCall";
 import IncomingCall from "./views/IncomingCall";
+import IncomingPopup from "./views/IncomingPopup";
 import Contacts from "./views/Contacts";
 import CallHistory from "./views/CallHistory";
 import Settings from "./views/Settings";
@@ -35,6 +37,11 @@ function App() {
   const incomingCall = useCallStore((s) => s.incomingCall);
   const { setActiveCall, setIncomingCall, removeCall } = useCallStore();
 
+  // Popup window renders its own minimal UI
+  if (getCurrentWebviewWindow().label.startsWith("popup-")) {
+    return <IncomingPopup />;
+  }
+
   const unlistenersRef = useRef<(() => void)[]>([]);
 
   useEffect(() => {
@@ -58,17 +65,29 @@ function App() {
           const wasActive = useCallStore.getState().activeCallId === callId;
           removeCall(callId);
           invoke("stop_ringtone").catch(() => {});
+          // Close floating popup if open
+          emit("popup:dismiss", {}).catch(() => {});
           const remaining = useCallStore.getState().calls;
           if (remaining.length > 0 && wasActive) {
             navigate(`/call/${remaining[remaining.length - 1].id}`, { replace: true });
           } else {
             navigate("/", { replace: true });
           }
+          // Clear incoming call if matches
+          if (useCallStore.getState().incomingCall?.id === callId) {
+            setIncomingCall(null);
+          }
           return;
         }
 
         if (state === "connected") {
           invoke("stop_ringtone").catch(() => {});
+          // Clear incoming call if this is the ringing call
+          const inc = useCallStore.getState().incomingCall;
+          if (inc && inc.id === callId) {
+            emit("popup:dismiss", {}).catch(() => {});
+            setIncomingCall(null);
+          }
         }
 
         const existing = useCallStore.getState().calls.find((c) => c.id === callId);
@@ -96,7 +115,11 @@ function App() {
         const remoteUri = payload.remote_uri ?? "";
         const hasActiveCalls = useCallStore.getState().calls.length > 0;
         if (!hasActiveCalls) {
+          invoke("stop_ringtone").catch(() => {});
           invoke("play_ringtone").catch(() => {});
+        } else {
+          // Second call while active — close floating popup if any
+          emit("popup:dismiss", {}).catch(() => {});
         }
         setIncomingCall({
           id,
@@ -110,6 +133,25 @@ function App() {
         });
       });
       unlistenersRef.current.push(u3);
+
+      const u4 = await listen<Record<string, unknown>>("popup:answer", (event) => {
+        const payload = event.payload as { callId?: string };
+        console.log("EVENT popup:answer", JSON.stringify(event.payload));
+        invoke("stop_ringtone").catch(() => {});
+        setIncomingCall(null);
+        if (payload.callId) {
+          navigate(`/call/${payload.callId}`, { replace: true });
+        }
+      });
+      unlistenersRef.current.push(u4);
+
+      const u5 = await listen<Record<string, unknown>>("popup:reject", () => {
+        console.log("EVENT popup:reject");
+        invoke("stop_ringtone").catch(() => {});
+        setIncomingCall(null);
+        navigate("/", { replace: true });
+      });
+      unlistenersRef.current.push(u5);
 
       const saved = await invoke<AccountConfig | null>("get_active_account").catch(() => null);
       if (saved) {

@@ -3,8 +3,7 @@
 use audio_engine::AudioEngine;
 use sip_engine::SipEngine;
 use std::sync::Arc;
-use tauri::Emitter;
-use tauri::Manager;
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 
@@ -54,10 +53,22 @@ async fn main() {
             }
 
             tokio::spawn(async move {
+                // Extract database Arc once so CallEnded never needs to lock AppState
+                let db = {
+                    let app = handle.state::<Arc<Mutex<AppState>>>();
+                    let app = app.lock().await;
+                    app.database.clone()
+                };
+                let mut heartbeat = tokio::time::interval(tokio::time::Duration::from_secs(5));
+                heartbeat.tick().await; // skip first instant
                 loop {
                     tokio::select! {
                         event = call_event_rx.recv() => {
-                            let Some(event) = event else { break };
+                            let Some(event) = event else {
+                                tracing::warn!("call_event_rx closed, breaking loop");
+                                break;
+                            };
+                            tracing::info!("EVENT_RX: variant={:?}", std::mem::discriminant(&event));
 
                             let (event_name, payload) = match event {
                                 sip_engine::CallEvent::EngineStarted => (
@@ -79,28 +90,90 @@ async fn main() {
                                     account_id,
                                     call_id,
                                     state,
-                                } => (
-                                    "sip:call-state",
-                                    serde_json::json!({
-                                        "type": "CallStateChanged",
-                                        "account_id": account_id,
-                                        "call_id": call_id,
-                                        "state": state,
-                                    }),
-                                ),
+                                } => {
+                                    if state == shared::CallState::Ended {
+                                        let app = handle.state::<Arc<Mutex<AppState>>>();
+                                        let mut app = app.lock().await;
+                                        // Clean up popup label for this call
+                                        if app.current_popup_label.as_deref() == Some(&format!("popup-{}", call_id)) {
+                                            app.current_popup_label = None;
+                                        }
+                                        // Clean up incoming call info if it matches
+                                        if app.incoming_call_info.as_ref().map(|i| i.call_id) == Some(call_id) {
+                                            app.incoming_call_info = None;
+                                        }
+                                    }
+                                    (
+                                        "sip:call-state",
+                                        serde_json::json!({
+                                            "type": "CallStateChanged",
+                                            "account_id": account_id,
+                                            "call_id": call_id,
+                                            "state": state,
+                                        }),
+                                    )
+                                }
                                 sip_engine::CallEvent::IncomingCall {
                                     account_id,
                                     call_id,
                                     remote_uri,
-                                } => (
-                                    "sip:incoming-call",
-                                    serde_json::json!({
-                                        "type": "IncomingCall",
-                                        "account_id": account_id,
-                                        "call_id": call_id,
-                                        "remote_uri": remote_uri,
-                                    }),
-                                ),
+                                } => {
+                                    // Store call info for popup
+                                    let popup_label = format!("popup-{}", call_id);
+                                    {
+                                        let app = handle.state::<Arc<Mutex<AppState>>>();
+                                        let mut app = app.lock().await;
+
+                                        // Close previous popup if any
+                                        if let Some(ref old_label) = app.current_popup_label {
+                                            if let Some(old_win) = handle.get_webview_window(old_label) {
+                                                let _ = old_win.close();
+                                            }
+                                        }
+                                        app.current_popup_label = Some(popup_label.clone());
+
+                                        app.set_incoming_call_info(call_id, remote_uri.clone());
+                                    }
+
+                                    // Create popup with unique label (no label conflict)
+                                    match WebviewWindowBuilder::new(
+                                        &handle,
+                                        &popup_label,
+                                        WebviewUrl::App("/".into()),
+                                    )
+                                    .title("")
+                                    .inner_size(300.0, 180.0)
+                                    .always_on_top(true)
+                                    .decorations(false)
+                                    .resizable(false)
+                                    .skip_taskbar(true)
+                                    .build()
+                                    {
+                                        Ok(popup) => {
+                                            if let Some(monitor) = popup.primary_monitor().ok().flatten() {
+                                                let size = monitor.size();
+                                                let _ = popup.set_position(tauri::PhysicalPosition::new(
+                                                    (size.width as f64 - 310.0).max(0.0) as i32,
+                                                    10,
+                                                ));
+                                            }
+                                            tracing::info!("Created popup {} for call {}", popup_label, call_id);
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!("Failed to create popup {}: {}", popup_label, e);
+                                        }
+                                    }
+
+                                    (
+                                        "sip:incoming-call",
+                                        serde_json::json!({
+                                            "type": "IncomingCall",
+                                            "account_id": account_id,
+                                            "call_id": call_id,
+                                            "remote_uri": remote_uri,
+                                        }),
+                                    )
+                                }
                                 sip_engine::CallEvent::DtmfReceived { call_id, digit } => (
                                     "sip:dtmf",
                                     serde_json::json!({
@@ -110,12 +183,14 @@ async fn main() {
                                     }),
                                 ),
                                 sip_engine::CallEvent::CallEnded(log_entry) => {
-                                    {
-                                        let app = handle.state::<Arc<Mutex<AppState>>>();
-                                        let app = app.lock().await;
-                                        if let Some(ref db) = app.database {
-                                            let _ = db.save_call_log(&log_entry);
-                                        }
+                                    // Save call log in background to avoid blocking event loop
+                                    if let Some(ref db) = db {
+                                        let db = db.clone();
+                                        let entry = log_entry.clone();
+                                        tokio::spawn(async move {
+                                            let _ = db.save_call_log(&entry);
+                                            tracing::info!("Call log saved for id={}", entry.id);
+                                        });
                                     }
                                     ("sip:call-log", serde_json::json!({
                                         "type": "CallEnded",
@@ -136,13 +211,41 @@ async fn main() {
                             };
 
                             tracing::info!(event_name, payload = %payload, "Emitting Tauri event");
-                            let _ = handle.emit(event_name, payload);
+                            let emit_result = handle.emit(event_name, payload);
+                            if let Err(e) = emit_result {
+                                tracing::error!("emit failed: {}", e);
+                            }
+                            tracing::info!("emit done");
+
+                            // Check for hotplug changes (non-blocking, no busy loop)
+                            loop {
+                                match hotplug_rx.try_recv() {
+                                    Ok(()) => {
+                                        tracing::info!("Audio devices changed, notifying frontend");
+                                        let _ = handle.emit("sip:devices-changed", serde_json::json!({
+                                            "type": "DeviceListChanged",
+                                        }));
+                                    }
+                                    Err(mpsc::error::TryRecvError::Empty) => break,
+                                    Err(mpsc::error::TryRecvError::Disconnected) => break,
+                                }
+                            }
                         }
-                        _ = hotplug_rx.recv() => {
-                            tracing::info!("Audio devices changed, notifying frontend");
-                            let _ = handle.emit("sip:devices-changed", serde_json::json!({
-                                "type": "DeviceListChanged",
-                            }));
+                        _ = heartbeat.tick() => {
+                            // Check for hotplug changes in heartbeat too
+                            loop {
+                                match hotplug_rx.try_recv() {
+                                    Ok(()) => {
+                                        tracing::info!("Audio devices changed, notifying frontend");
+                                        let _ = handle.emit("sip:devices-changed", serde_json::json!({
+                                            "type": "DeviceListChanged",
+                                        }));
+                                    }
+                                    Err(mpsc::error::TryRecvError::Empty) => break,
+                                    Err(mpsc::error::TryRecvError::Disconnected) => break,
+                                }
+                            }
+                            tracing::debug!("event loop heartbeat alive");
                         }
                     }
                 }
@@ -176,6 +279,7 @@ async fn main() {
             commands::stop_ringtone,
             commands::play_test_tone,
             commands::set_audio_mute,
+            commands::get_incoming_call_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
