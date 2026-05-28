@@ -16,14 +16,18 @@ interface ContactStore {
   removeContact: (id: string) => void;
 }
 
+function sortByName(contacts: Contact[]): Contact[] {
+  return [...contacts].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+}
+
 export const useContactStore = create<ContactStore>((set) => ({
   contacts: [],
-  setContacts: (contacts) => set({ contacts }),
+  setContacts: (contacts) => set({ contacts: sortByName(contacts) }),
   addContact: (contact) =>
-    set((state) => ({ contacts: [...state.contacts, contact] })),
+    set((state) => ({ contacts: sortByName([...state.contacts, contact]) })),
   updateContact: (contact) =>
     set((state) => ({
-      contacts: state.contacts.map((c) => (c.id === contact.id ? contact : c)),
+      contacts: sortByName(state.contacts.map((c) => (c.id === contact.id ? contact : c))),
     })),
   removeContact: (id) =>
     set((state) => ({
