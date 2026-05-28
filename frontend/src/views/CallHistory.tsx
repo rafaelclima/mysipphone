@@ -7,12 +7,14 @@ import {
   ListItemAvatar,
   Avatar,
   Typography,
-  Chip,
+  IconButton,
 } from "@mui/material";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneForwardedIcon from "@mui/icons-material/PhoneForwarded";
 import MissedCallIcon from "@mui/icons-material/PhoneMissed";
+import PhoneIcon from "@mui/icons-material/Phone";
 import { invoke } from "@tauri-apps/api/core";
+import { useNavigate } from "react-router-dom";
 
 import { useTranslation } from "../i18n";
 
@@ -50,7 +52,15 @@ function isMissed(entry: HistoryEntry): boolean {
 
 function CallHistory() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<HistoryEntry[]>([]);
+
+  const handleCall = (uri: string) => {
+    navigate("/");
+    setTimeout(() => {
+      invoke("make_call", { uri }).catch(console.error);
+    }, 100);
+  };
 
   useEffect(() => {
     invoke<HistoryEntry[]>("get_call_history")
@@ -123,14 +133,11 @@ function CallHistory() {
                   primary={displayName(log)}
                   secondary={`${log.start_time || ""} ${formatDuration(log.duration_secs) ? `· ${formatDuration(log.duration_secs)}` : ""}`}
                   primaryTypographyProps={{ fontWeight: 500 }}
+                  sx={{ flex: "1 1 auto", minWidth: 0 }}
                 />
-                <Chip
-                  label={missed ? t("history.missed") : log.direction === "incoming" ? t("history.incoming") : t("history.outgoing")}
-                  size="small"
-                  variant="outlined"
-                  color={missed ? "error" : log.direction === "incoming" ? "success" : "primary"}
-                  sx={{ fontWeight: 500 }}
-                />
+                <IconButton size="small" onClick={() => handleCall(log.remote_uri)} color="success">
+                  <PhoneIcon fontSize="small" />
+                </IconButton>
               </ListItem>
               );
             })}
