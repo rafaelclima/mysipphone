@@ -57,6 +57,15 @@ Verified via `cargo test -p pjsip-sys`.
 - The software clock (`Sound port uses internal (or software) clock`) handles drift fine at 8kHz
 - `channel_count = 2` (stereo) works with the 8kHz config
 
+## Asterisk Feature Code (#) Compatibility
+- `pjsip_cfg()->endpt.allow_tx_hash_in_uri = PJ_TRUE` prevents pjsip from
+  encoding `#` as `%23` in outgoing URIs (set in `mysip_apply_settings`, helpers.c:311)
+- **`*8#` call pickup**: The frontend sends `sip:*8%23@dominio` (encodes `#` as `%23`).
+  `mysip_make_call` decodes `%23` → `#` in the user part, then strips trailing `#`
+  (Asterisk dial terminator). Physical phones send `*8` (without `#`) for general pickup.
+  Targeted pickup (`*8#123`) keeps `#` intact.
+- See helpers.c:56-71 for the decode + strip logic.
+
 ## Pending / To Test
 - **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
 - **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
@@ -65,9 +74,6 @@ Verified via `cargo test -p pjsip-sys`.
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
-2. **`*8#` call pickup**: `%23` encoding of `#` breaks Asterisk feature code matching. Fix in
-   `mysip_make_call` (helpers.c): decode `%23` → `#` before passing to pjsua, fallback to `%23`
-   if pjsip rejects literal `#`. Works only if pjsip accepts `#` in user part of SIP URI.
 
 ## FFI Struct Sizes (pjsip 2.17, x86_64)
 These MUST match the Rust `_opaque` padding exactly:
@@ -188,7 +194,7 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
 ```
 
 ## Notable Quirks
-- No `README.md`, no `opencode.json`, no CI, no `.cargo/config.toml`
+- No `opencode.json`, no CI, no `.cargo/config.toml`
 - Frontend ESLint is flat config (`eslint.config.js`), not `.eslintrc`
 - Vite runs on port 1420, HMR on 1421
 - `cargo tauri dev` requires GTK3 + WebKit2GTK + libayatana-appindicator3 (system packages)

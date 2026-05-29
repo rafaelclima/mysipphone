@@ -1,79 +1,85 @@
 # mySIPPhone
 
-A production-grade SIP softphone for Linux desktop. Direct SIP + RTP to Asterisk/Issabel PBX on local network. No cloud dependencies, no browser/WebRTC audio — real pjsip stack with native ALSA audio.
+Desktop SIP softphone for Linux. Connects directly to Asterisk/Issabel PBX on local network. Real pjsip stack + native ALSA audio — no cloud, no WebRTC, no browser audio.
 
-Built with **Tauri 2** (Rust) + **React 18 / MUI 6 / Zustand** + **pjsip 2.17** C library via FFI.
+Built with **Tauri 2** (Rust) + **pjsip 2.17** + **React 18 / MUI 6**.
 
-## Features
-
-### Current
-| Feature | Status |
-|---------|--------|
-| SIP account registration | ✅ Real pjsip registration |
-| Audio device enumeration | ✅ ALSA device detection |
-| Ringtone playback | ✅ 440Hz sine wave |
-| Dark/light theme | ✅ MUI 6 theming |
-| Navigation | ✅ Dialer, Contacts, History, Settings |
-| Incoming/Outgoing call UI | ✅ Phone shell with ActiveCall screen |
-| Outgoing calls | ✅ Full invite + RTP audio |
-| Incoming calls | ✅ Ring + answer + RTP audio |
-| Hold / Resume | ✅ Via pjsip call hold |
-| Mute | ✅ Via audio-engine atomic flag |
-| Blind Transfer | ✅ With cancel ✕ / Escape |
-| Multiple lines | ✅ Call waiting with swap |
-| DTMF | ✅ RFC 2833 in-band |
-| Call history | ✅ SQLite persistence |
-| Contacts CRUD | ✅ Add, edit, delete, call |
-| CSV import | ✅ Client-side parse + bulk import |
-| Audio hotplug | ✅ 2s polling, auto-refresh |
-| SIP reconnect | ✅ Exponential backoff 1-60s |
-| Per-user install | ✅ `install.sh` → `~/.local/` |
-
-### Planned (M6b)
-- Device themes (iPhone/Galaxy/Pixel)
-- Call from history
-- Call Pickup `*8#`
-
-## Requirements
-
-### Hardware
-- Linux desktop (x86_64)
-- Microphone and speaker (or headset)
-- SIP PBX on local network (e.g., Asterisk, Issabel, FreePBX)
-
-### Runtime Libraries
-| Library | Purpose |
-|---------|---------|
-| GTK3 + WebKit2GTK 4.1 | Tauri webview |
-| ALSA (`libasound2`) | Audio playback/capture |
-| pjsip 2.17 (built from source) | SIP stack |
-
-Your distro's **PipeWire** provides ALSA compatibility automatically — no extra config needed.
-
-## Quick Install (end user)
+## Install (end user)
 
 ```bash
-git clone https://github.com/yourusername/mysipphone.git
+git clone https://github.com/rafaelclima/mysipphone.git
 cd mysipphone
 ./scripts/install.sh
 ```
 
-This compiles pjsip, builds the Rust binary, and installs everything to `~/.local/`:
-- Binary: `~/.local/bin/mysipphone`
-- pjsip libs: `~/.local/lib/mysipphone/`
-- Desktop entry: `~/.local/share/applications/mysipphone.desktop`
-- Icons: `~/.local/share/icons/hicolor/*/apps/mysipphone.png`
+No sudo required. Installs to `~/.local/`:
+- `~/.local/bin/mysipphone` — binary
+- `~/.local/lib/mysipphone/` — bundled pjsip libs
+- `~/.local/share/applications/mysipphone.desktop` — app menu entry
+- `~/.local/share/icons/hicolor/*/apps/mysipphone.png` — app icons
 
-Then find "mySIPPhone" in your app menu or run `mysipphone`.
+After install, find **mySIPPhone** in your app menu or run `mysipphone`.
 
-## Development Setup
+### Dependencies (your distro must have)
 
-### 1. System Packages
+| Library | Purpose |
+|---------|---------|
+| GTK3 + WebKit2GTK 4.1 | Tauri webview (almost every distro has this) |
+| ALSA (`libasound2`) | Audio capture/playback (PipeWire provides ALSA compat) |
 
-**Ubuntu 24.04 / Pop!_OS 24.04 / Debian 12+**
+## Usage (quick tutorial)
+
+1. **Launch the app** → Account Setup screen appears on first run.
+2. **Enter your SIP credentials**: extension, domain, user, password — same data you'd configure in any SIP phone (e.g., Linphone, Zoiper, a physical desk phone).
+3. **Dial a number**: type the extension on the dialpad and press the green call button. Outgoing call connects with RTP audio.
+4. **Receive calls**: when someone calls your extension, the app rings — answer or reject.
+5. **Call pickup (`*8#`)**: if a call is ringing at another extension in the same pickup group, dial `*8#` (or `*8#extension` for targeted pickup) — works like a physical phone.
+6. **Hold / Resume**: during a call, press Hold. Press again to resume.
+7. **Blind Transfer**: during a call, press Transfer → type target extension → confirm. Cancel with ✕ or Escape.
+8. **Call waiting**: a second incoming call while active shows a banner — answer puts the first on hold. Swap between calls.
+9. **Contacts**: add/edit/delete contacts. CSV import supported.
+10. **Settings**: manage SIP account, pick audio devices (mic/speaker), toggle dark/light theme, test speakers.
+
+### Account Config
+
+| Field | Example |
+|-------|---------|
+| Extension | 595 |
+| PBX Domain | 192.168.54.2 |
+| Username | 595 |
+| Password | your_sip_password |
+
+The app auto-registers on the PBX. Once registered (green indicator in the status bar), you can place and receive calls.
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| SIP registration (auto-reconnect) | ✅ |
+| Outgoing calls (INVITE + RTP audio) | ✅ |
+| Incoming calls (ring + answer) | ✅ |
+| Call pickup `*8#` (+ targeted `*8#extension`) | ✅ |
+| Hold / Resume | ✅ |
+| Mute (audio-engine level) | ✅ |
+| Blind Transfer | ✅ |
+| Call waiting / swap | ✅ |
+| DTMF (RFC 2833) | ✅ |
+| Call history (SQLite) | ✅ |
+| Contacts CRUD + CSV import | ✅ |
+| Multiple lines | ✅ |
+| Audio hotplug (2s polling) | ✅ |
+| Dark / Light theme | ✅ |
+| Incoming call popup window | ✅ |
+| PT-BR / EN i18n | ✅ |
+| Per-user install (no sudo) | ✅ |
+| Device themes (iPhone/Galaxy/Pixel) | 🔜 Planned |
+
+## Development
+
+### System Dependencies
 
 ```bash
-sudo apt update
+# Ubuntu 24.04 / Pop!_OS 24.04 / Debian 12+
 sudo apt install -y \
   build-essential pkg-config curl make \
   libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
@@ -84,79 +90,101 @@ sudo apt install -y \
   uuid-dev libtool autoconf automake g++ nodejs npm
 ```
 
-### 2. Install Rust + Node.js
+### Setup
 
 ```bash
+# Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
+
+# Node.js (via nvm)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 nvm install --lts
-```
 
-### 3. Build pjsip
-
-```bash
+# pjsip (one-time build from source)
 ./scripts/setup-pjsip.sh
-```
 
-### 4. Install npm Dependencies
-
-```bash
+# Frontend deps
 cd frontend && npm install && cd ..
 ```
 
-### 5. Set Environment (every shell)
+### Environment (every shell)
 
 ```bash
 source ./scripts/set-env.sh
 ```
 
-### 6. Build & Run
+### Commands
 
-```bash
-cargo tauri dev          # Full app
-cargo build --release    # Release binary only
-```
+| What | Command |
+|------|---------|
+| Full app (Tauri dev) | `cargo tauri dev` |
+| Check compilation | `cargo check` |
+| Rust lint | `cargo clippy --all-targets -- -D warnings` |
+| Verify FFI struct sizes | `cargo test -p pjsip-sys` |
+| Frontend dev server | `npm run dev` (in `frontend/`) |
+| Frontend typecheck | `npx tsc --noEmit` (in `frontend/`) |
+| Frontend lint | `npm run lint` (in `frontend/`) |
+| Install system-wide | `./scripts/install.sh` |
+| Build AppImage | `./scripts/build-appimage.sh` |
 
-## Commands
+### Pre-Commit Checklist
 
-| Command | What it does |
-|---------|-------------|
-| `cargo tauri dev` | Run full app (Tauri window) |
-| `./scripts/install.sh` | Full per-user install |
-| `./scripts/build-appimage.sh` | Build AppImage |
-| `cargo check` | Check Rust compilation |
-| `cargo clippy --all-targets -- -D warnings` | Rust lint |
-| `cargo test -p pjsip-sys` | Verify FFI struct sizes |
-| `npm run dev` (in `frontend/`) | Frontend dev server |
-| `npm run lint` (in `frontend/`) | Frontend lint |
-| `npx tsc --noEmit` (in `frontend/`) | TypeScript check |
+1. `cargo test -p pjsip-sys` — verify FFI struct sizes
+2. `cargo check`
+3. `cargo clippy --all-targets -- -D warnings`
+4. `npm run lint` (in `frontend/`)
+5. `npx tsc --noEmit` (in `frontend/`)
 
 ## Troubleshooting
 
-### `pjsua_init failed: 70004` (PJ_EINVAL)
-Struct size mismatch in `pjsip-sys`. Run `cargo test -p pjsip-sys` to verify.
-Fix: `packages/pjsip-sys/src/lib.rs:29` — `pjsua_config._opaque` must be `[u8; 2640]`.
+### `pjsua_init failed: 70004 (PJ_EINVAL)`
+FFI struct size mismatch. Run `cargo test -p pjsip-sys` to check. See `packages/pjsip-sys/src/lib.rs` — struct `_opaque` padding must match actual C struct size.
 
 ### `pkg-config: libpjproject not found`
 Run `./scripts/setup-pjsip.sh` first, then `source ./scripts/set-env.sh`.
 
+### No audio devices
+```bash
+aplay -l          # list playback devices
+arecord -l        # list capture devices
+sudo apt install pipewire-alsa  # if using PipeWire
+```
+
 ### Icon shows generic gear in app menu
-Desktop icon cache stale. Run:
 ```bash
 gtk-update-icon-cache ~/.local/share/icons/hicolor
 ```
 
-### Window icon shows generic while app is running
-WM_CLASS mismatch. Desktop entry uses `StartupWMClass=com.mysipphone.desktop`.
-Re-login or restart shell if dock doesn't update.
+## Project Structure
 
-### No audio devices detected
-```bash
-aplay -l
-arecord -l
-sudo apt install pipewire-alsa   # if using PipeWire
 ```
+packages/
+  pjsip-sys/       Raw FFI to pjsua C API (bindings, helpers.c)
+  sip-engine/      pjsip lifecycle, call control, event emission
+  audio-engine/    ALSA backend, ringtone player, mute
+  persistence/     SQLite repos (Account, Contact, CallLog)
+  shared/          Zero-dep types (enums, structs)
+src-tauri/         Tauri shell (commands, state, main)
+frontend/          React app (views, stores, components, i18n)
+scripts/           Build & install scripts
+```
+
+## Architecture
+
+```
+pjsip (C) → pjsip-sys (FFI) → sip-engine (Rust)
+                                   │
+                              mpsc channel
+                                   │
+                           Tauri event (sip:*)
+                                   │
+                            Zustand store
+                                   │
+                               React UI
+```
+
+Audio path: `ALSA ← audio-engine ← Tauri commands ← React`
 
 ## License
 
