@@ -60,14 +60,14 @@ Verified via `cargo test -p pjsip-sys`.
 ## Pending / To Test
 - **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
 - **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
-- **Call history**: Call log saving on end, display with direction/end_reason, grouped by date. Verify data persists across restarts.
 - **Device themes**: iPhone/Galaxy/Pixel switch — see M6b in ROADMAP.md
-- **Call from history**: Phone icon on history rows — see M6b in ROADMAP.md
-- **Call Pickup `*8#`** : Button in Dialer, needs URI wrapping `sip:*8%23@dominio` — see M6b in ROADMAP.md
 
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
+2. **`*8#` call pickup**: `%23` encoding of `#` breaks Asterisk feature code matching. Fix in
+   `mysip_make_call` (helpers.c): decode `%23` → `#` before passing to pjsua, fallback to `%23`
+   if pjsip rejects literal `#`. Works only if pjsip accepts `#` in user part of SIP URI.
 
 ## FFI Struct Sizes (pjsip 2.17, x86_64)
 These MUST match the Rust `_opaque` padding exactly:
