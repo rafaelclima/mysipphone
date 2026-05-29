@@ -11,7 +11,20 @@ Built with **Tauri 2** (Rust) + **pjsip 2.17** + **React 18 / MUI 6**.
 | ![Dialer](resources/prints/01.png) | ![Account Setup](resources/prints/02.png) | ![Incoming Call](resources/prints/03.png) |
 | ![Active Call](resources/prints/04.png) | ![Settings](resources/prints/05.png) | |
 
-## Install (end user)
+## Install
+
+### AppImage (recomendado — não precisa de ferramentas de desenvolvimento)
+
+Baixe o AppImage mais recente da [página de releases](https://github.com/rafaelclima/mysipphone/releases):
+
+```bash
+chmod +x mySIPPhone_*.AppImage
+./mySIPPhone_*.AppImage
+```
+
+Alternativamente, copie para qualquer lugar (~/.local/bin, /opt, etc.) e execute.
+
+### Build a partir do fonte (para contribuidores)
 
 ```bash
 git clone https://github.com/rafaelclima/mysipphone.git
@@ -19,20 +32,20 @@ cd mysipphone
 ./scripts/install.sh
 ```
 
-No sudo required. Installs to `~/.local/`:
+No sudo required. Instala em `~/.local/`:
 - `~/.local/bin/mysipphone` — binary
 - `~/.local/lib/mysipphone/` — bundled pjsip libs
 - `~/.local/share/applications/mysipphone.desktop` — app menu entry
 - `~/.local/share/icons/hicolor/*/apps/mysipphone.png` — app icons
 
-After install, find **mySIPPhone** in your app menu or run `mysipphone`.
+Após instalar, procure **mySIPPhone** no menu de apps ou execute `mysipphone`.
 
-### Dependencies (your distro must have)
+### Dependências de runtime
 
 | Library | Purpose |
 |---------|---------|
-| GTK3 + WebKit2GTK 4.1 | Tauri webview (almost every distro has this) |
-| ALSA (`libasound2`) | Audio capture/playback (PipeWire provides ALSA compat) |
+| GTK3 + WebKit2GTK 4.1 | Tauri webview (quase toda distro tem) |
+| ALSA (`libasound2`) | Audio capture/playback (PipeWire tem compat) |
 
 ## Usage (quick tutorial)
 

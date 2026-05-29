@@ -1,0 +1,8 @@
+[Desktop Entry]
+Categories=
+Exec=mysipphone
+StartupWMClass=mysipphone
+Icon=mysipphone
+Name=mySIPPhone
+Terminal=false
+Type=Application
