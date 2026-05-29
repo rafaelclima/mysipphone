@@ -20,6 +20,13 @@ pub enum SipError {
     #[error("Invalid URI: {0}")]
     InvalidUri(String),
 
+    #[error("Null byte in SIP configuration field '{field}': {source}")]
+    ConfigNullByte {
+        field: &'static str,
+        #[source]
+        source: std::ffi::NulError,
+    },
+
     #[error("Invalid DTMF digits: {0}")]
     InvalidDtmf(String),
 

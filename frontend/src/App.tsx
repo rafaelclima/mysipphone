@@ -35,7 +35,9 @@ function App() {
   const navigate = useNavigate();
   const setAccount = useAuthStore((s) => s.setAccount);
   const incomingCall = useCallStore((s) => s.incomingCall);
-  const { setActiveCall, setIncomingCall, removeCall } = useCallStore();
+  const setActiveCall = useCallStore((s) => s.setActiveCall);
+  const setIncomingCall = useCallStore((s) => s.setIncomingCall);
+  const removeCall = useCallStore((s) => s.removeCall);
 
   // Popup window renders its own minimal UI
   if (getCurrentWebviewWindow().label.startsWith("popup-")) {
@@ -173,7 +175,6 @@ function App() {
     return (
       <PhoneShell>
         <Routes>
-          <Route path="/incoming" element={<AnimatedPage><IncomingCall /></AnimatedPage>} />
           <Route path="*" element={<AnimatedPage><IncomingCall /></AnimatedPage>} />
         </Routes>
       </PhoneShell>

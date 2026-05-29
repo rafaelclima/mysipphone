@@ -186,10 +186,16 @@ impl AudioEngine {
                 if null_fd >= 0 {
                     libc::dup2(null_fd, 2);
                     libc::close(null_fd);
-                    let result = f();
+                    // catch_unwind ensures stderr is restored even on panic
+                    let result = std::panic::catch_unwind(
+                        std::panic::AssertUnwindSafe(f),
+                    );
                     libc::dup2(saved, 2);
                     libc::close(saved);
-                    return result;
+                    return match result {
+                        Ok(r) => r,
+                        Err(e) => std::panic::resume_unwind(e),
+                    };
                 }
                 libc::close(saved);
             }

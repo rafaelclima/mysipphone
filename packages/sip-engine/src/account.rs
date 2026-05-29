@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+use crate::error::SipError;
 use crate::events::CallEvent;
 use pjsip_sys::*;
 use std::collections::{HashMap, HashSet};
@@ -337,7 +338,9 @@ impl PjsuaEngine {
         while !shutdown.load(Ordering::SeqCst) {
             match cmd_rx.recv_timeout(std::time::Duration::from_millis(500)) {
                 Ok(crate::SipCommand::Register(config)) => {
-                    Self::register_impl(&event_tx, config);
+                    if let Err(e) = Self::register_impl(&event_tx, config) {
+                        tracing::error!("Registration failed: {e}");
+                    }
                 }
                 Ok(crate::SipCommand::Unregister(account_id)) => {
                     Self::unregister_impl(&event_tx, account_id);
@@ -573,14 +576,19 @@ impl PjsuaEngine {
         }
     }
 
-    fn register_impl(event_tx: &mpsc::Sender<CallEvent>, config: shared::AccountConfig) {
+    fn register_impl(event_tx: &mpsc::Sender<CallEvent>, config: shared::AccountConfig) -> Result<(), SipError> {
         tracing::info!("Registering SIP account: {}", config.sip_uri);
 
-        let id = CString::new(config.sip_uri.as_str()).unwrap();
-        let reg_uri = CString::new(config.registrar.as_str()).unwrap();
-        let realm = CString::new(config.realm.as_str()).unwrap();
-        let username = CString::new(config.username.as_str()).unwrap();
-        let password = CString::new(config.password.as_str()).unwrap();
+        let id = CString::new(config.sip_uri.as_str())
+            .map_err(|e| SipError::ConfigNullByte { field: "sip_uri", source: e })?;
+        let reg_uri = CString::new(config.registrar.as_str())
+            .map_err(|e| SipError::ConfigNullByte { field: "registrar", source: e })?;
+        let realm = CString::new(config.realm.as_str())
+            .map_err(|e| SipError::ConfigNullByte { field: "realm", source: e })?;
+        let username = CString::new(config.username.as_str())
+            .map_err(|e| SipError::ConfigNullByte { field: "username", source: e })?;
+        let password = CString::new(config.password.as_str())
+            .map_err(|e| SipError::ConfigNullByte { field: "password", source: e })?;
 
         let mut acc_id: std::ffi::c_int = -1;
         let status = unsafe {
@@ -595,12 +603,11 @@ impl PjsuaEngine {
         };
 
         if status != 0 {
-            tracing::error!("mysip_account_add failed: status={}", status);
             let _ = event_tx.blocking_send(CallEvent::AccountStateChanged {
                 account_id: config.id.clone(),
                 state: shared::AccountState::RegistrationFailed,
             });
-            return;
+            return Err(SipError::RegistrationFailed(format!("mysip_account_add status={}", status)));
         }
 
         if acc_id >= 0 {
@@ -617,6 +624,7 @@ impl PjsuaEngine {
         });
 
         tracing::info!("Account registered with acc_id={}", acc_id);
+        Ok(())
     }
 
     fn unregister_impl(event_tx: &mpsc::Sender<CallEvent>, account_id: String) {

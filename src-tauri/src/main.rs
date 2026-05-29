@@ -187,9 +187,12 @@ async fn main() {
                                     if let Some(ref db) = db {
                                         let db = db.clone();
                                         let entry = log_entry.clone();
-                                        tokio::spawn(async move {
-                                            let _ = db.save_call_log(&entry);
-                                            tracing::info!("Call log saved for id={}", entry.id);
+                                        tokio::task::spawn_blocking(move || {
+                                            if let Err(e) = db.save_call_log(&entry) {
+                                                tracing::error!("Failed to save call log: {e}");
+                                            } else {
+                                                tracing::info!("Call log saved for id={}", entry.id);
+                                            }
                                         });
                                     }
                                     ("sip:call-log", serde_json::json!({
