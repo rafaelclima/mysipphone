@@ -4,6 +4,13 @@ Desktop SIP softphone for Linux. Connects directly to Asterisk/Issabel PBX on lo
 
 Built with **Tauri 2** (Rust) + **pjsip 2.17** + **React 18 / MUI 6**.
 
+## Screenshots
+
+| Dialer & Active Call | Account Setup & Settings | Incoming Call |
+|---|---|---|
+| ![Dialer](resources/prints/01.png) | ![Account Setup](resources/prints/02.png) | ![Incoming Call](resources/prints/03.png) |
+| ![Active Call](resources/prints/04.png) | ![Settings](resources/prints/05.png) | |
+
 ## Install (end user)
 
 ```bash
