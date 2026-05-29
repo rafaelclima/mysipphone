@@ -82,11 +82,10 @@ pub async fn unhold(
 #[tauri::command]
 pub async fn mute(
     state: State<'_, Arc<Mutex<AppState>>>,
-    call_id: String,
     muted: bool,
 ) -> Result<(), String> {
     let app = state.lock().await;
-    app.send_command(SipCommand::Mute(call_id, muted));
+    app.send_audio_command(AudioCommand::SetMute(muted));
     Ok(())
 }
 

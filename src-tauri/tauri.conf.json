@@ -10,6 +10,7 @@
     "frontendDist": "../frontend/dist"
   },
   "app": {
+    "enableGTKAppId": true,
     "windows": [
       {
         "title": "mySIPPhone",
@@ -59,6 +60,7 @@
         }
       },
       "deb": {
+        "desktopTemplate": "templates/main.desktop",
         "files": {
           "/usr/lib/mysipphone/libpjsua.so.2": "../pjsip-dist/lib/libpjsua.so.2",
           "/usr/lib/mysipphone/libpjsip-ua.so.2": "../pjsip-dist/lib/libpjsip-ua.so.2",

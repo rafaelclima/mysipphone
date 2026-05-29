@@ -374,9 +374,6 @@ impl PjsuaEngine {
                         tracing::warn!("RetryRegister failed for acc_id={}: {}", acc_id, status);
                     }
                 }
-                Ok(crate::SipCommand::Mute(ref _call_id, ref _muted)) => {
-                    tracing::warn!("Mute not yet implemented in pjsip engine");
-                }
                 Ok(crate::SipCommand::Shutdown) => {
                     shutdown.store(true, Ordering::SeqCst);
                 }

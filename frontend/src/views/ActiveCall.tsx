@@ -117,7 +117,7 @@ function ActiveCall() {
 
   const toggleMute = async () => {
     try {
-      await invoke("mute", { callId: call.id, muted: !call.isMuted });
+      await invoke("mute", { muted: !call.isMuted });
       setMuted(call.id, !call.isMuted);
     } catch (err) {
       console.error("Mute failed:", err);
