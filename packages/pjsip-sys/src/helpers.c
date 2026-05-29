@@ -35,7 +35,9 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
 {
     pj_str_t dst;
     char buf[512];
+    char decoded[1024];
     const char *call_uri = uri;
+    const char *original = NULL;
 
     if (strstr(uri, "sip:") == NULL && strchr(uri, '@') == NULL) {
         pjsua_acc_info info;
@@ -53,12 +55,37 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
         }
     }
 
+    if (strstr(call_uri, "%23") != NULL) {
+        original = call_uri;
+        char *p = decoded;
+        const char *src = call_uri;
+        while (*src) {
+            if (src[0] == '%' && src[1] == '2' && src[2] == '3') {
+                *p++ = '#';
+                src += 3;
+            } else {
+                *p++ = *src++;
+            }
+        }
+        *p = '\0';
+        call_uri = decoded;
+    }
+
     dst.ptr = (char *)call_uri;
     dst.slen = strlen(call_uri);
 
     pjsua_call_id call_id;
     pj_status_t status = pjsua_call_make_call(
         (pjsua_acc_id)acc_id, &dst, NULL, NULL, NULL, &call_id);
+
+    if (status != PJ_SUCCESS && original != NULL) {
+        call_uri = original;
+        dst.ptr = (char *)call_uri;
+        dst.slen = strlen(call_uri);
+        status = pjsua_call_make_call(
+            (pjsua_acc_id)acc_id, &dst, NULL, NULL, NULL, &call_id);
+    }
+
     if (status != PJ_SUCCESS) {
         *out_call_id = -1;
         return (int)status;
