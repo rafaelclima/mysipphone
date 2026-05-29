@@ -311,6 +311,19 @@ void mysip_apply_settings(pjsua_config *cfg,
     pjsip_cfg()->endpt.allow_tx_hash_in_uri = PJ_TRUE;
 }
 
+int mysip_set_mic_mute(int call_id, int muted)
+{
+    pjsua_call_info info;
+    pj_status_t status = pjsua_call_get_info((pjsua_call_id)call_id, &info);
+    if (status != PJ_SUCCESS) return (int)status;
+    if (muted) {
+        status = pjsua_conf_disconnect(0, info.conf_slot);
+    } else {
+        status = pjsua_conf_connect(0, info.conf_slot);
+    }
+    return (int)status;
+}
+
 int mysip_call_xfer_replaces(int call_id,
                               int dest_call_id,
                               int options)

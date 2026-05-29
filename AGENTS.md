@@ -167,7 +167,7 @@ cargo check                      # whole workspace
 - Tauri command handlers take `State<'_, Arc<Mutex<AppState>>>` and clone the mpsc sender
 - ALL pjsip C struct access goes through C helpers in `helpers.c`, never through Rust struct field access
 - Callback registration: C bridge functions (static in helpers.c) call `#[no_mangle] extern "C"` Rust functions
-- Mute is handled via audio-engine (`AudioCommand::SetMute`), NOT via pjsip
+- Mute is handled via `pjsua_conf_disconnect(0, conf_slot)` / `pjsua_conf_connect(0, conf_slot)` in `helpers.c:mysip_set_mic_mute` — physically disconnects mic (port 0) from call's conf_slot. This is guaranteed correct vs. confusing TX/RX semantics of `pjsua_conf_adjust_*_level`.
 - Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
 - **Incoming call popup**: Rust creates a secondary `WebviewWindow("incoming-popup")` at top-right (300×180, `always_on_top`, no decorations, `skip_taskbar`). Popup reads call info via `invoke("get_incoming_call_info")`. Answer/Reject emits `popup:answer`/`popup:reject` events to main window. Auto-closes on call state leaving `Ringing` or via `popup:dismiss` event. Capabilities include `"incoming-popup"` window with `allow-close` and `allow-set-focus`.
 

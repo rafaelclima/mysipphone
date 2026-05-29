@@ -357,6 +357,14 @@ impl PjsuaEngine {
                 Ok(crate::SipCommand::Transfer(call_id, target)) => {
                     Self::transfer_impl(&event_tx, &call_id, &target);
                 }
+                Ok(crate::SipCommand::Mute(call_id, muted)) => {
+                    if let Ok(cid) = call_id.parse::<c_int>() {
+                        let rc = unsafe { mysip_set_mic_mute(cid, muted as c_int) };
+                        if rc != 0 {
+                            tracing::warn!("mysip_set_mic_mute failed: {}", rc);
+                        }
+                    }
+                }
                 Ok(crate::SipCommand::SendDtmf(call_id, digits)) => {
                     Self::send_dtmf_impl(&event_tx, &call_id, &digits);
                 }

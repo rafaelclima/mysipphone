@@ -275,6 +275,8 @@ extern "C" {
 
     pub fn mysip_call_xfer(call_id: c_int, target: *const c_char) -> c_int;
 
+    pub fn mysip_set_mic_mute(call_id: c_int, muted: c_int) -> c_int;
+
     pub fn mysip_call_connect_media(call_id: c_int) -> c_int;
 
     pub fn mysip_call_get_remote_uri(

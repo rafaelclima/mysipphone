@@ -26,6 +26,7 @@ pub enum SipCommand {
     Unhold(String),
     Transfer(String, String),
     SendDtmf(String, String),
+    Mute(String, bool),
     Answer(String),
     Reject(String),
     RetryRegister(i32),
