@@ -6,6 +6,7 @@ import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import { useAuthStore } from "../store/useAuthStore";
+import { SnackbarAlert } from "../components/SnackbarAlert";
 
 const DIAL_PAD = [
   { digit: "1", letters: "" },
@@ -39,6 +40,8 @@ function Dialer() {
   const [number, setNumber] = useState("");
   const numberRef = useRef(number);
   numberRef.current = number;
+  const [snack, setSnack] = useState({ open: false, msg: "" });
+  const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const handleDial = (digit: string) => {
     setNumber((prev) => prev + digit);
@@ -54,7 +57,7 @@ function Dialer() {
     try {
       await invoke("make_call", { uri });
     } catch (err) {
-      console.error("Call failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
@@ -63,7 +66,7 @@ function Dialer() {
     try {
       await invoke("make_call", { uri });
     } catch (err) {
-      console.error("Pickup failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
@@ -73,7 +76,7 @@ function Dialer() {
         e.preventDefault();
         const n = numberRef.current;
         if (n) {
-          invoke("make_call", { uri: buildSipUri(n) }).catch(console.error);
+          invoke("make_call", { uri: buildSipUri(n) }).catch((err) => setSnack({ open: true, msg: String(err) }));
         }
         return;
       }
@@ -204,6 +207,8 @@ function Dialer() {
             <PhoneInTalkIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Box>
+
+        <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />
       </Box>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   Box, List, ListItem, ListItemText, ListItemAvatar, Avatar, Typography,
   TextField, InputAdornment, IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, Button, Alert,
+  DialogActions, Button, Alert, CircularProgress,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import PhoneIcon from "@mui/icons-material/Phone";
@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { useContactStore, Contact } from "../store/useContactStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranslation } from "../i18n";
+import { SnackbarAlert } from "../components/SnackbarAlert";
 
 function extractDomain(): string {
   const account = useAuthStore.getState().account;
@@ -33,11 +34,18 @@ function Contacts() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const contacts = useContactStore((s) => s.contacts);
-  const { setContacts, addContact, updateContact, removeContact } = useContactStore();
+  const setContacts = useContactStore((s) => s.setContacts);
+  const addContact = useContactStore((s) => s.addContact);
+  const updateContact = useContactStore((s) => s.updateContact);
+  const removeContact = useContactStore((s) => s.removeContact);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [form, setForm] = useState({ name: "", extension: "", phone_number: "" });
+  const [loading, setLoading] = useState(true);
+  const [snack, setSnack] = useState({ open: false, msg: "" });
+
+  const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const domain = extractDomain();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -95,9 +103,16 @@ function Contacts() {
   };
 
   useEffect(() => {
+    setLoading(true);
     invoke<Contact[]>("get_contacts")
-      .then(setContacts)
-      .catch(console.error);
+      .then((data) => {
+        setContacts(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setLoading(false);
+        setSnack({ open: true, msg: String(err) });
+      });
   }, [setContacts]);
 
   const openAdd = () => {
@@ -137,7 +152,7 @@ function Contacts() {
       }
       setDialogOpen(false);
     } catch (err) {
-      console.error("Save contact failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
@@ -146,14 +161,14 @@ function Contacts() {
       await invoke("delete_contact", { contactId: id });
       removeContact(id);
     } catch (err) {
-      console.error("Delete contact failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
   const handleCall = (uri: string) => {
     navigate("/");
     setTimeout(() => {
-      invoke("make_call", { uri }).catch(console.error);
+      invoke("make_call", { uri }).catch((err) => setSnack({ open: true, msg: String(err) }));
     }, 100);
   };
 
@@ -320,6 +335,18 @@ function Contacts() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress size={32} />
+        </Box>
+      )}
+
+      <SnackbarAlert
+        open={snack.open}
+        message={snack.msg}
+        onClose={closeSnack}
+      />
     </Box>
   );
 }

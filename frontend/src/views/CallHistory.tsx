@@ -8,6 +8,7 @@ import {
   Avatar,
   Typography,
   IconButton,
+  CircularProgress,
 } from "@mui/material";
 import PhoneCallbackIcon from "@mui/icons-material/PhoneCallback";
 import PhoneForwardedIcon from "@mui/icons-material/PhoneForwarded";
@@ -17,6 +18,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useNavigate } from "react-router-dom";
 
 import { useTranslation } from "../i18n";
+import { SnackbarAlert } from "../components/SnackbarAlert";
 
 interface HistoryEntry {
   id: string;
@@ -54,18 +56,28 @@ function CallHistory() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [logs, setLogs] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [snack, setSnack] = useState({ open: false, msg: "" });
+  const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const handleCall = (uri: string) => {
     navigate("/");
     setTimeout(() => {
-      invoke("make_call", { uri }).catch(console.error);
+      invoke("make_call", { uri }).catch((err) => setSnack({ open: true, msg: String(err) }));
     }, 100);
   };
 
   useEffect(() => {
+    setLoading(true);
     invoke<HistoryEntry[]>("get_call_history")
-      .then(setLogs)
-      .catch(console.error);
+      .then((data) => {
+        setLogs(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setLoading(false);
+        setSnack({ open: true, msg: String(err) });
+      });
   }, []);
 
   const grouped = logs.reduce<Record<string, HistoryEntry[]>>((acc, log) => {
@@ -82,7 +94,13 @@ function CallHistory() {
         {t("history.title")}
       </Typography>
 
-      {Object.entries(grouped).length === 0 && (
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress size={32} />
+        </Box>
+      )}
+
+      {!loading && Object.entries(grouped).length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mt: 4 }}>
           {t("history.empty")}
         </Typography>
@@ -144,6 +162,8 @@ function CallHistory() {
           </List>
         </Box>
       ))}
+
+      <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />
     </Box>
   );
 }

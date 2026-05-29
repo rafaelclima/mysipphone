@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallStore } from "../store/useCallStore";
 import { useTranslation } from "../i18n";
 import IncomingBanner from "../components/IncomingBanner";
+import { SnackbarAlert } from "../components/SnackbarAlert";
 
 const DTMF_KEYS = [
   ["1", "2", "3"],
@@ -43,6 +44,8 @@ function ActiveCall() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const [snack, setSnack] = useState({ open: false, msg: "" });
+  const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const callId = call?.id;
   const sendDtmf = useCallback(async (digit: string) => {
@@ -50,7 +53,7 @@ function ActiveCall() {
     try {
       await invoke("send_dtmf", { callId, digits: digit });
     } catch (err) {
-      console.error("DTMF failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   }, [callId]);
 
@@ -61,7 +64,7 @@ function ActiveCall() {
       setTransferTarget("");
       setShowTransfer(false);
     } catch (err) {
-      console.error("Transfer failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   }, [callId, transferTarget]);
 
@@ -110,7 +113,7 @@ function ActiveCall() {
     try {
       await invoke("hangup", { callId: call.id });
     } catch (err) {
-      console.error("Hangup failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
     navigate("/");
   };
@@ -120,7 +123,7 @@ function ActiveCall() {
       await invoke("mute", { callId: call.id, muted: !call.isMuted });
       setMuted(call.id, !call.isMuted);
     } catch (err) {
-      console.error("Mute failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
@@ -133,7 +136,7 @@ function ActiveCall() {
       }
       setHold(call.id, !call.isOnHold);
     } catch (err) {
-      console.error("Hold failed:", err);
+      setSnack({ open: true, msg: String(err) });
     }
   };
 
@@ -145,14 +148,14 @@ function ActiveCall() {
       await invoke("hold", { callId: call.id });
       setHold(call.id, true);
     } catch (err) {
-      console.error("Hold failed:", err);
+      setSnack({ open: true, msg: String(err) });
       return;
     }
     try {
       await invoke("unhold", { callId: targetId });
       setHold(targetId, false);
     } catch (err) {
-      console.error("Unhold failed:", err);
+      setSnack({ open: true, msg: String(err) });
       return;
     }
     navigate(`/call/${targetId}`, { replace: true });
@@ -292,6 +295,8 @@ function ActiveCall() {
       >
         <CallEndIcon sx={{ fontSize: 32 }} />
       </IconButton>
+
+      <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />
     </Box>
   );
 }
