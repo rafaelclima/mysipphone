@@ -35,11 +35,45 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
 {
     pj_str_t dst;
     char buf[512];
-    char decoded[1024];
+    char work_buf[512];
     const char *call_uri = uri;
-    const char *original = NULL;
+    size_t uri_len = strlen(uri);
 
-    if (strstr(uri, "sip:") == NULL && strchr(uri, '@') == NULL) {
+    // Work on a mutable copy
+    if (uri_len >= sizeof(work_buf)) return -1;
+    memcpy(work_buf, uri, uri_len + 1);
+
+    // Decode %23 → # in the SIP user part (between "sip:" and "@").
+    // Frontend encodes # as %23 for pjsip URI parser, but we need to
+    // strip trailing # for Asterisk feature code compatibility.
+    {
+        const char *sip_pfx = strstr(work_buf, "sip:");
+        char *at_sign = strchr(work_buf, '@');
+        if (sip_pfx && at_sign) {
+            char *user_start = work_buf + (sip_pfx - work_buf) + 4;
+            size_t user_len = (size_t)(at_sign - user_start);
+            // Decode %23 → #
+            for (size_t i = 0; i + 2 < user_len; i++) {
+                if (user_start[i] == '%' && user_start[i+1] == '2' && user_start[i+2] == '3') {
+                    user_start[i] = '#';
+                    memmove(&user_start[i+1], &user_start[i+3], 
+                            uri_len - (size_t)(user_start - work_buf + i + 3) + 1);
+                    uri_len -= 2;
+                    user_len -= 2;
+                }
+            }
+            // Strip trailing # from user part (Asterisk dial terminator)
+            if (user_len > 0 && user_start[user_len - 1] == '#') {
+                memmove(&user_start[user_len - 1], &user_start[user_len],
+                        uri_len - (size_t)(user_start - work_buf + user_len) + 1);
+                uri_len--;
+                user_len--;
+            }
+        }
+    }
+    call_uri = work_buf;
+
+    if (strstr(call_uri, "sip:") == NULL && strchr(call_uri, '@') == NULL) {
         pjsua_acc_info info;
         if (pjsua_acc_get_info((pjsua_acc_id)acc_id, &info) == PJ_SUCCESS) {
             int domain_len = info.acc_uri.slen;
@@ -47,28 +81,12 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
             if (at) {
                 domain_len = (info.acc_uri.ptr + info.acc_uri.slen) - at;
             }
-            int n = snprintf(buf, sizeof(buf), "sip:%s%.*s", uri, (int)domain_len,
+            int n = snprintf(buf, sizeof(buf), "sip:%s%.*s", call_uri, (int)domain_len,
                             at ? at : info.acc_uri.ptr);
             if (n > 0 && n < (int)sizeof(buf)) {
                 call_uri = buf;
             }
         }
-    }
-
-    if (strstr(call_uri, "%23") != NULL) {
-        original = call_uri;
-        char *p = decoded;
-        const char *src = call_uri;
-        while (*src) {
-            if (src[0] == '%' && src[1] == '2' && src[2] == '3') {
-                *p++ = '#';
-                src += 3;
-            } else {
-                *p++ = *src++;
-            }
-        }
-        *p = '\0';
-        call_uri = decoded;
     }
 
     dst.ptr = (char *)call_uri;
@@ -77,15 +95,6 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
     pjsua_call_id call_id;
     pj_status_t status = pjsua_call_make_call(
         (pjsua_acc_id)acc_id, &dst, NULL, NULL, NULL, &call_id);
-
-    if (status != PJ_SUCCESS && original != NULL) {
-        call_uri = original;
-        dst.ptr = (char *)call_uri;
-        dst.slen = strlen(call_uri);
-        status = pjsua_call_make_call(
-            (pjsua_acc_id)acc_id, &dst, NULL, NULL, NULL, &call_id);
-    }
-
     if (status != PJ_SUCCESS) {
         *out_call_id = -1;
         return (int)status;
@@ -298,6 +307,8 @@ void mysip_apply_settings(pjsua_config *cfg,
     media_cfg->enable_ice = PJ_FALSE;
     media_cfg->enable_turn = PJ_FALSE;
     media_cfg->thread_cnt = 1;
+
+    pjsip_cfg()->endpt.allow_tx_hash_in_uri = PJ_TRUE;
 }
 
 int mysip_call_xfer_replaces(int call_id,
