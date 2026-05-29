@@ -139,6 +139,7 @@ cargo check                      # whole workspace
 |------|-----------------------------|
 | Dev (full Tauri) | `cargo tauri dev` |
 | Install (system) | `./scripts/install.sh` |
+| Install (Arch/Omarchy) | `./scripts/setup-arch.sh` (optional: path or URL) |
 | Build AppImage | `./scripts/build-appimage.sh` |
 | Frontend dev only | `npm run dev` (in `frontend/`) |
 | Rust lint | `cargo clippy --all-targets -- -D warnings` |
@@ -188,7 +189,7 @@ frontend/          React app (Vite config, eslint.config.js, i18n/)
     components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
     i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
     theme.ts       MUI dark/light theme
-scripts/           setup-pjsip.sh, install-deps.sh, set-env.sh, install.sh, build-appimage.sh
+scripts/           setup-pjsip.sh, setup-arch.sh, install-deps.sh, set-env.sh, install.sh, build-appimage.sh
 pjsip-dist/       local pjsip install (not in git)
 resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
 ```
@@ -215,4 +216,8 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
   safely `source`d by `install.sh` without killing the parent script.
 - `install.sh` creates `~/.local/share/icons/hicolor/index.theme` if missing, then runs
   `gtk-update-icon-cache` so the desktop environment finds the app icon.
+- `setup-arch.sh` is for Arch/Omarchy/Manjaro users. Installs `webkit2gtk-4.1` (runtime Tauri dep),
+  downloads/installs AppImage, extracts icons, creates desktop entry.
+  Sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` when on Wayland (fix white screen on Hyprland).
+  Usage: `./scripts/setup-arch.sh [path|URL]`.
 - The `.desktop` `Icon` uses absolute path to bypass `XDG_DATA_DIRS` lookup issues.

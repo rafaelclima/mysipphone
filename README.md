@@ -24,6 +24,25 @@ chmod +x mySIPPhone_*.AppImage
 
 Alternativamente, copie para qualquer lugar (~/.local/bin, /opt, etc.) e execute.
 
+### Arch Linux / Omarchy / Manjaro
+
+Pré-requisito: `webkit2gtk-4.1` (runtime do Tauri, não incluso no AppImage):
+
+```bash
+sudo pacman -S --needed webkit2gtk-4.1
+```
+
+Setup automático (instala deps + baixa AppImage + cria atalho no menu):
+
+```bash
+git clone https://github.com/rafaelclima/mysipphone.git
+cd mysipphone
+./scripts/setup-arch.sh
+```
+
+Omarchy 3.8 usa Hyprland (Wayland). O script detecta e já aplica
+`WEBKIT_DISABLE_DMABUF_RENDERER=1` automaticamente no atalho do menu.
+
 ### Build a partir do fonte (para contribuidores)
 
 ```bash
