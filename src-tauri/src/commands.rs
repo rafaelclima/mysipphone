@@ -269,6 +269,16 @@ pub async fn shutdown(
     app.send_command(SipCommand::Shutdown);
     app.send_audio_command(AudioCommand::Shutdown);
     drop(app);
+
+    // Wait up to 5s for pjsip to finish shutdown (unregister, close transports)
+    for _ in 0..50 {
+        if sip_engine::is_shutdown_complete() {
+            tracing::info!("Pjsip engine shutdown complete");
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
     app_handle.exit(0);
     Ok(())
 }

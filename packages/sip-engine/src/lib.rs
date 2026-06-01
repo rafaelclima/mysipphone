@@ -3,7 +3,7 @@ pub mod call;
 pub mod error;
 pub mod events;
 
-pub use account::PjsuaEngine;
+pub use account::{PjsuaEngine, is_shutdown_complete};
 pub use call::CallManager;
 pub use error::SipError;
 pub use events::CallEvent;

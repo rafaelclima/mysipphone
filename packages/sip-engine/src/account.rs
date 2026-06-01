@@ -15,6 +15,8 @@ static ACTIVE_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static HUNG_UP_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>> = OnceLock::new();
 
+static SHUTDOWN_DONE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
 // ── C-callable callbacks (linked by name from helpers.c bridges) ──
 
 #[no_mangle]
@@ -213,6 +215,13 @@ pub struct PjsuaEngine {
     shutdown_flag: Arc<AtomicBool>,
 }
 
+pub fn is_shutdown_complete() -> bool {
+    SHUTDOWN_DONE
+        .get()
+        .map(|d| d.load(Ordering::SeqCst))
+        .unwrap_or(false)
+}
+
 impl PjsuaEngine {
     pub fn start(
         event_tx: mpsc::Sender<CallEvent>,
@@ -220,6 +229,9 @@ impl PjsuaEngine {
     ) -> Arc<Self> {
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let flag = shutdown_flag.clone();
+        let shutdown_done = Arc::new(AtomicBool::new(false));
+        let done = shutdown_done.clone();
+        let _ = SHUTDOWN_DONE.set(shutdown_done);
         let thread_tx = event_tx.clone();
 
         EVENT_TX
@@ -244,7 +256,7 @@ impl PjsuaEngine {
         std::thread::Builder::new()
             .name("pjsip-engine".into())
             .spawn(move || {
-                Self::run_pjsip(thread_tx, cmd_rx2, flag);
+                Self::run_pjsip(thread_tx, cmd_rx2, flag, done);
             })
             .expect("Failed to spawn pjsip thread");
 
@@ -255,6 +267,7 @@ impl PjsuaEngine {
         event_tx: mpsc::Sender<CallEvent>,
         cmd_rx: std::sync::mpsc::Receiver<crate::SipCommand>,
         shutdown: Arc<AtomicBool>,
+        shutdown_done: Arc<AtomicBool>,
     ) {
         tracing::info!("Starting pjsip engine");
 
@@ -398,6 +411,7 @@ impl PjsuaEngine {
 
         tracing::info!("Shutting down pjsip engine");
         unsafe { pjsua_destroy(); }
+        shutdown_done.store(true, Ordering::SeqCst);
     }
 
     fn configure_sound_device() {
