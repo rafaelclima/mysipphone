@@ -5,7 +5,7 @@ set -euo pipefail
 APP_NAME="mySIPPhone"
 APP_ID="mysipphone"
 APPIMAGE_NAME="mySIPPhone_0.1.3_amd64.AppImage"
-RELEASE_URL="https://github.com/rafaelclima/mysipphone/releases/download/sip/${APPIMAGE_NAME}"
+RELEASE_URL="https://github.com/rafaelclima/mysipphone/releases/download/v0.1.3/${APPIMAGE_NAME}"
 
 APPIMAGE_DIR="$HOME/.local/share/AppImage"
 APPIMAGE_PATH="$APPIMAGE_DIR/$APPIMAGE_NAME"

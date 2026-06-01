@@ -116,5 +116,5 @@
 ## M8 — Quality of Life (feito)
 - [x] **Call history auto-prune**: Keep only 7 days of history (auto-delete on save)
 - [x] **Registration indicator**: Visual icon (green/red/yellow/grey) in the status bar next to the network icons — shows registered/failed/registering/unregistered at a glance
-- [x] **App version**: "mySIPPhone v0.1.0" at the bottom of Settings
+- [x] **App version**: Dynamic from Tauri API (was hardcoded "v0.1.0")
 - [x] **Help section**: Modal in Settings with usage tips, call features, keyboard shortcuts, and audio device guide — translated to EN/PT-BR
