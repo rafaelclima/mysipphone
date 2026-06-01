@@ -1,7 +1,4 @@
 import { Box, Typography, Tooltip } from "@mui/material";
-import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
-import WifiIcon from "@mui/icons-material/Wifi";
-import BatteryFullIcon from "@mui/icons-material/BatteryFull";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -9,13 +6,21 @@ import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranslation } from "../i18n";
+import { SignalIcon, DeviceWifiIcon, BatteryIcon } from "../theme/icons";
+import { DEVICE_THEMES } from "../theme/deviceThemes";
+import type { DeviceTheme } from "../theme/deviceThemes";
 
-function StatusBar() {
+interface StatusBarProps {
+  deviceTheme: DeviceTheme;
+}
+
+function StatusBar({ deviceTheme }: StatusBarProps) {
   const [time, setTime] = useState(
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   );
   const authState = useAuthStore((s) => s.state);
   const { t } = useTranslation();
+  const cfg = DEVICE_THEMES[deviceTheme];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -50,25 +55,46 @@ function StatusBar() {
         justifyContent: "space-between",
         alignItems: "flex-start",
         px: 2,
-        pt: 3,
+        pt: cfg.statusBarPt,
         pb: 0.25,
-        bgcolor: "grey.900",
+        bgcolor: cfg.shellColor,
         color: "white",
         zIndex: 5,
       }}
     >
-      <Typography sx={{ fontWeight: 600, fontSize: 10, lineHeight: 1 }}>
+      <Typography
+        sx={{
+          fontWeight: 600,
+          fontSize: 10,
+          lineHeight: 1,
+          visibility: cfg.timeAlign === "center" ? "hidden" : "visible",
+        }}
+      >
         {time}
       </Typography>
+      {cfg.timeAlign === "center" && (
+        <Typography
+          sx={{
+            fontWeight: 600,
+            fontSize: 10,
+            lineHeight: 1,
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+          }}
+        >
+          {time}
+        </Typography>
+      )}
       <Box sx={{ display: "flex", gap: 0.25, alignItems: "center" }}>
         <Tooltip title={regLabel} arrow placement="top">
           <Box sx={{ display: "flex", alignItems: "center", mr: 0.5 }}>
             {regIcon}
           </Box>
         </Tooltip>
-        <SignalCellularAltIcon sx={{ fontSize: 13 }} />
-        <WifiIcon sx={{ fontSize: 12 }} />
-        <BatteryFullIcon sx={{ fontSize: 14 }} />
+        <SignalIcon deviceTheme={deviceTheme} />
+        <DeviceWifiIcon deviceTheme={deviceTheme} />
+        <BatteryIcon deviceTheme={deviceTheme} />
       </Box>
     </Box>
   );

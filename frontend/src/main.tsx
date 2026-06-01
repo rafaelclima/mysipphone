@@ -15,7 +15,7 @@ function ThemedApp() {
   return (
     <ThemeProvider theme={mode === "dark" ? darkTheme : lightTheme}>
       <CssBaseline />
-      <GlobalStyles styles={{ html: { backgroundColor: "#212121" }, body: { backgroundColor: "#212121" }, "#root": { backgroundColor: "#212121" } }} />
+      <GlobalStyles styles={{ html: { backgroundColor: "transparent" }, body: { backgroundColor: "transparent" }, "#root": { backgroundColor: "transparent" } }} />
       <BrowserRouter>
         <I18nProvider>
           <App />

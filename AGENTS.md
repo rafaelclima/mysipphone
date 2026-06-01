@@ -94,6 +94,16 @@ Verify with: `cargo test -p pjsip-sys`
 - If AppImage window appears smaller than dev, the config is identical; discrepancy may stem
   from Tauri 2 dev server behavior vs production binary.
 
+## Device Themes (iPhone / Galaxy / Pixel)
+- Three device mockup themes: `iphone` (default), `galaxy`, `pixel`
+- Each theme changes: phone shell corner radius, camera cutout shape (notch vs punch-hole),
+  status bar layout (time alignment, top spacing), and status bar icons (signal, WiFi, battery).
+- Pixel theme reuses MUI Material icons; iPhone and Galaxy use custom inline SVG icons.
+- Theme selected in Settings → Device Theme. Persisted to `localStorage` via `useSettingsStore`.
+- Config in `frontend/src/theme/deviceThemes.ts` — `DEVICE_THEMES` record with per-theme values.
+- Icons in `frontend/src/theme/icons/` — `SignalIcon`, `DeviceWifiIcon`, `BatteryIcon`.
+- MUI dark/light mode is orthogonal — both dimensions work independently.
+
 ## Icon Installation (per-user, no sudo)
 - Desktop file uses **absolute path** to PNG icon (not icon name lookup) because `~/.local/share`
   may not be in `XDG_DATA_DIRS` on all distros.
@@ -189,6 +199,9 @@ frontend/          React app (Vite config, eslint.config.js, i18n/)
     components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
     i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
     theme.ts       MUI dark/light theme
+    theme/
+      deviceThemes.ts   Device mockup config (corner, notch, icons per theme)
+      icons/            SignalIcon, DeviceWifiIcon, BatteryIcon (SVG per device)
 scripts/           setup-pjsip.sh, setup-arch.sh, install-deps.sh, set-env.sh, install.sh, build-appimage.sh
 pjsip-dist/       local pjsip install (not in git)
 resources/        source assets (mysipphone.png — 500×500 RGBA icon source)

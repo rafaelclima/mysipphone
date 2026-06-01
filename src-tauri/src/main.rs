@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 
 mod commands;
 mod state;
+mod window_utils;
 
 pub use state::AppState;
 
@@ -51,6 +52,9 @@ async fn main() {
                     let _ = window.open_devtools();
                 }
             }
+
+            // Set initial window corner radius (iPhone default = 44px)
+            let _ = window_utils::set_corner_radius(44.0);
 
             tokio::spawn(async move {
                 // Extract database Arc once so CallEnded never needs to lock AppState
@@ -283,6 +287,7 @@ async fn main() {
             commands::play_test_tone,
             commands::set_audio_mute,
             commands::get_incoming_call_info,
+            commands::set_window_corner_radius,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

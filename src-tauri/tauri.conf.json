@@ -14,6 +14,7 @@
     "windows": [
       {
         "title": "mySIPPhone",
+        "transparent": true,
         "width": 320,
         "height": 600,
         "resizable": true,

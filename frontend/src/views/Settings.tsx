@@ -40,6 +40,7 @@ import MicIcon from "@mui/icons-material/Mic";
 import RingVolumeIcon from "@mui/icons-material/RingVolume";
 import LanguageIcon from "@mui/icons-material/Language";
 import VolumeUpOutlinedIcon from "@mui/icons-material/VolumeUpOutlined";
+import PhoneAndroidIcon from "@mui/icons-material/PhoneAndroid";
 import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -51,6 +52,8 @@ import { useTranslation } from "../i18n";
 function Settings() {
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const deviceTheme = useSettingsStore((s) => s.deviceTheme);
+  const setDeviceTheme = useSettingsStore((s) => s.setDeviceTheme);
   const account = useAuthStore((s) => s.account);
   const authState = useAuthStore((s) => s.state);
   const { t, locale, setLocale } = useTranslation();
@@ -363,6 +366,104 @@ function Settings() {
             <MenuItem value="pt-BR">{t("language.pt_BR")}</MenuItem>
           </Select>
         </ListItem>
+
+        <Divider sx={{ my: 0.75 }} />
+
+        <ListItem
+          sx={{
+            borderRadius: 2,
+            mx: 0.75,
+            mb: 0.25,
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "grey.500" }}>
+              <PhoneAndroidIcon sx={{ fontSize: 18 }} />
+            </Avatar>
+          </ListItemIcon>
+          <ListItemText
+            primary={t("settings.device_theme")}
+            primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
+          />
+        </ListItem>
+        <Box sx={{ display: "flex", gap: 1, px: 2, pb: 1 }}>
+          {(["iphone", "galaxy", "pixel"] as const).map((tema) => {
+            const selected = deviceTheme === tema;
+            const previewColor = tema === "iphone" ? "#1a1a1c" : tema === "galaxy" ? "#1c1c1e" : "#1f1f1f";
+            return (
+              <Box
+                key={tema}
+                onClick={() => setDeviceTheme(tema)}
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 0.5,
+                  cursor: "pointer",
+                  borderRadius: 2,
+                  p: 1,
+                  border: "2px solid",
+                  borderColor: selected ? "primary.main" : "transparent",
+                  bgcolor: selected ? "action.selected" : "transparent",
+                  transition: "all 0.15s",
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 52,
+                    borderRadius: 1.5,
+                    border: "1.5px solid",
+                    borderColor: "grey.500",
+                    bgcolor: previewColor,
+                    position: "relative",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {tema === "iphone" ? (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 20,
+                        height: 7,
+                        bgcolor: previewColor,
+                        borderBottomLeftRadius: 3,
+                        borderBottomRightRadius: 3,
+                        zIndex: 1,
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 2,
+                        left: tema === "galaxy" ? "50%" : "25%",
+                        transform: tema === "galaxy" ? "translateX(-50%)" : "none",
+                        width: 4,
+                        height: 4,
+                        borderRadius: "50%",
+                        bgcolor: "#55556a",
+                        zIndex: 1,
+                      }}
+                    />
+                  )}
+                  <Box sx={{ flex: 1, mx: 0.5, my: 0.5, borderRadius: 0.5, bgcolor: "background.paper" }} />
+                  <Box sx={{ height: 6, bgcolor: previewColor }} />
+                </Box>
+                <Typography variant="caption" sx={{ fontSize: "0.65rem", fontWeight: selected ? 700 : 400, textTransform: "capitalize" }}>
+                  {t(`device_theme.${tema}`)}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
       </List>
 
       <Box sx={{ mt: "auto" }}>

@@ -83,7 +83,7 @@
 - [x] **Call from history**: Phone icon on each call log entry → invokes `make_call`
 - [x] **Call Pickup shortcut**: `*8#` button in Dialer via `sip:*8%23@dominio`
 - [x] **Animations/transitions** between routes (fade/slide via Framer Motion `AnimatePresence`)
-- [ ] **Device themes**: iPhone, Galaxy, Pixel mockup (notch, corners, status bar)
+- [x] **Device themes**: iPhone, Galaxy, Pixel mockup (notch, corners, status bar, icons)
 - [x] Import contacts (CSV)
 
 ---

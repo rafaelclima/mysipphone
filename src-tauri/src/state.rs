@@ -29,8 +29,16 @@ impl AppState {
         std::fs::create_dir_all(&db_dir).ok();
         let db_path = db_dir.join("mysipphone.db");
         let db_path_str = db_path.to_string_lossy().to_string();
-        let database = persistence::Database::open(&db_path_str).ok().map(std::sync::Arc::new);
-        tracing::info!("Database path: {}", db_path_str);
+        let database = match persistence::Database::open(&db_path_str) {
+            Ok(db) => {
+                tracing::info!("Database opened at {}", db_path_str);
+                Some(std::sync::Arc::new(db))
+            }
+            Err(e) => {
+                tracing::error!("Failed to open database at {}: {}", db_path_str, e);
+                None
+            }
+        };
         Self {
             sip_cmd_tx,
             audio_cmd_tx,

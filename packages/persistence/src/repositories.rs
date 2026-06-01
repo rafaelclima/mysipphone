@@ -103,6 +103,7 @@ impl Database {
                 serde_json::to_string(&entry.end_reason).map(|s| s.trim_matches('"').to_string()).unwrap_or_default(),
             ],
         )?;
+        drop(conn);
         self.prune_call_logs()?;
         Ok(())
     }

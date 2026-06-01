@@ -282,3 +282,8 @@ pub async fn set_audio_mute(
     app.send_audio_command(AudioCommand::SetMute(muted));
     Ok(())
 }
+
+#[tauri::command]
+pub fn set_window_corner_radius(radius: f64) -> Result<(), String> {
+    crate::window_utils::set_corner_radius(radius)
+}

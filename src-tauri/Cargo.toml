@@ -9,6 +9,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+gtk = { version = "0.18", features = ["v3_24"] }
 shared = { path = "../packages/shared" }
 sip-engine = { path = "../packages/sip-engine" }
 audio-engine = { path = "../packages/audio-engine" }

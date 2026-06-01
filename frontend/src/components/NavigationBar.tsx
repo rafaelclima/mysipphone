@@ -5,11 +5,18 @@ import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "../i18n";
+import { DEVICE_THEMES } from "../theme/deviceThemes";
+import type { DeviceTheme } from "../theme/deviceThemes";
 
-function NavigationBar() {
+interface NavigationBarProps {
+  deviceTheme: DeviceTheme;
+}
+
+function NavigationBar({ deviceTheme }: NavigationBarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const cfg = DEVICE_THEMES[deviceTheme];
 
   const currentValue =
     {
@@ -22,7 +29,7 @@ function NavigationBar() {
   return (
     <Box
       sx={{
-        bgcolor: "grey.900",
+        bgcolor: cfg.shellColor,
         "& .MuiBottomNavigation-root": {
           bgcolor: "transparent",
         },
@@ -58,6 +65,23 @@ function NavigationBar() {
         <BottomNavigationAction label={t("nav.history")} icon={<HistoryIcon />} />
         <BottomNavigationAction label={t("nav.settings")} icon={<SettingsIcon />} />
       </BottomNavigation>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          pb: cfg.homeIndicator.bottom,
+          pt: 0.5,
+        }}
+      >
+        <Box
+          sx={{
+            width: cfg.homeIndicator.width,
+            height: cfg.homeIndicator.height,
+            borderRadius: cfg.homeIndicator.borderRadius,
+            bgcolor: "grey.600",
+          }}
+        />
+      </Box>
     </Box>
   );
 }
