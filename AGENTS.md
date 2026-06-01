@@ -99,7 +99,7 @@ Missing `pipewire-alsa` is likely root cause of audio issue (no ALSA PCM devices
 #### 2. EGL / WebKit troubleshooting
 ```bash
 # Force X11 backend (bypasses EGL issues)
-GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.2_amd64.AppImage
+GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.3_amd64.AppImage
 
 # Check Wayland session type
 echo $XDG_SESSION_TYPE
@@ -135,7 +135,7 @@ echo "Available sinks: $pcm_list"
 
 # Check ALSA devices ALSA lib sees vs pjsip
 # Run with:
-ALSA_CONFIG_PATH="" /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.2_amd64.AppImage
+ALSA_CONFIG_PATH="" /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.3_amd64.AppImage
 ```
 
 #### 4. Run diagnostic script

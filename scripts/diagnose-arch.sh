@@ -86,7 +86,7 @@ echo ""
 
 # ─── AppImage ───────────────────────────────────────────────
 echo "─── AppImage ──────────────────────────────────"
-APPIMAGE="$HOME/.local/share/AppImage/mySIPPhone_0.1.2_amd64.AppImage"
+APPIMAGE="$HOME/.local/share/AppImage/mySIPPhone_0.1.3_amd64.AppImage"
 if [ -f "$APPIMAGE" ]; then
   echo "  Found: $APPIMAGE"
   file "$APPIMAGE" 2>&1
