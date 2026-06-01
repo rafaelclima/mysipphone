@@ -4,7 +4,7 @@ set -euo pipefail
 # ─── Config ─────────────────────────────────────────────────
 APP_NAME="mySIPPhone"
 APP_ID="mysipphone"
-APPIMAGE_NAME="mySIPPhone_0.1.1_amd64.AppImage"
+APPIMAGE_NAME="mySIPPhone_0.1.2_amd64.AppImage"
 RELEASE_URL="https://github.com/rafaelclima/mysipphone/releases/download/sip/${APPIMAGE_NAME}"
 
 APPIMAGE_DIR="$HOME/.local/share/AppImage"
@@ -52,6 +52,17 @@ if [ ${#MISSING[@]} -gt 0 ]; then
   fi
 else
   info "Tudo ok."
+fi
+
+# Verificar pipewire-alsa (essencial para áudio em sistemas PipeWire)
+if pacman -Qi pipewire &>/dev/null; then
+  if ! pacman -Qi pipewire-alsa &>/dev/null; then
+    echo ""
+    echo "⚠️  pipewire-alsa não está instalado."
+    echo "   O áudio pode não funcionar (dispositivos ALSA com 0 canais)."
+    echo "   Instale com: sudo pacman -S pipewire-alsa"
+    echo ""
+  fi
 fi
 
 # ─── 3. Resolve AppImage ───────────────────────────────────

@@ -75,6 +75,89 @@ Verified via `cargo test -p pjsip-sys`.
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
 
+## Omarchy / Arch Linux Debug (EGL crash + PipeWire Audio)
+
+### Problem
+Two separate failures on Arch-based distros with Wayland + PipeWire:
+
+**A) EGL/WebKit crash** — `Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...`
+The WebKitGTK webview cannot create an EGL display. The Rust backend survives (heartbeat continues),
+but the UI window is killed. `WEBKIT_DISABLE_DMABUF_RENDERER=1` alone may not be sufficient.
+
+**B) All audio devices show (in=0, out=0, rate=0)** — pjsip's `pjsua_enum_snd_devs()` reports
+PipeWire ALSA devices with zero channels/rate. Devices are skipped (line 439 in `account.rs`),
+`try_order`/`fallback` lists stay empty → null sound device.
+
+### Debug Commands (run on the Omarchy machine)
+
+#### 1. Check system packages
+```bash
+pacman -Qi webkit2gtk-4.1 gtk3 libxkbcommon mesa vulkan-driver pipewire pipewire-alsa alsa-lib
+```
+Missing `pipewire-alsa` is likely root cause of audio issue (no ALSA PCM devices exposed by PipeWire).
+
+#### 2. EGL / WebKit troubleshooting
+```bash
+# Force X11 backend (bypasses EGL issues)
+GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.2_amd64.AppImage
+
+# Check Wayland session type
+echo $XDG_SESSION_TYPE
+echo $WAYLAND_DISPLAY
+
+# Test WebKit separately
+# Install: pacman -S webkitgtk-6.0 (or webkit2gtk-4.1-debug)
+# Check EGL details:
+glxinfo -B 2>/dev/null || echo "glxinfo not available"
+eglinfo 2>/dev/null || echo "eglinfo not available (install libegl)"
+```
+
+#### 3. ALSA/PipeWire audio troubleshooting
+```bash
+# Check PipeWire status
+pactl info
+pactl list sinks short
+pactl list sources short
+
+# ALSA device listing
+aplay -l
+arecord -l
+speaker-test -D default -t sine -f 440 -l 1  # should play a beep
+
+# Check if pipewire-alsa is configured
+cat /etc/asound.conf 2>/dev/null || echo "no /etc/asound.conf"
+cat ~/.asoundrc 2>/dev/null || echo "no ~/.asoundrc"
+cat /usr/share/alsa/alsa.conf.d/pipewire-alsa.conf 2>/dev/null || echo "no pipewire-alsa.conf"
+
+# PipeWire ALSA PCM devices
+pcm_list=$(pactl list sinks | grep "Name:" | head -5)
+echo "Available sinks: $pcm_list"
+
+# Check ALSA devices ALSA lib sees vs pjsip
+# Run with:
+ALSA_CONFIG_PATH="" /home/rafaellima/.local/share/AppImage/mySIPPhone_0.1.2_amd64.AppImage
+```
+
+#### 4. Run diagnostic script
+```bash
+bash <(curl -s https://raw.githubusercontent.com/rafaelclima/mysipphone/dev/scripts/diagnose-arch.sh)
+```
+Or copy `scripts/diagnose-arch.sh` from the repo and run it locally.
+
+### Root Cause Likelihood (audio)
+| Probability | Cause | Check |
+|-------------|-------|-------|
+| **High** | `pipewire-alsa` not installed | `pacman -Qi pipewire-alsa` |
+| **Medium** | PipeWire JACK/PulseAudio bridge misconfigured | `pactl info` |
+| **Low** | pjsip built against wrong ALSA version | `ldd pjsip-dist/lib/libpjmedia-audiodev.so` |
+
+### Root Cause Likelihood (EGL)
+| Probability | Cause | Check |
+|-------------|-------|-------|
+| **High** | Mesa/GPU driver incompatibility with WebKit | `MESA_LOADER_DRIVER_OVERRIDE=iris` test |
+| **Medium** | Missing `libxkbcommon` | `pacman -Qi libxkbcommon` |
+| **Low** | COSMIC compositor EGL limitation | `GDK_BACKEND=x11` test |
+
 ## FFI Struct Sizes (pjsip 2.17, x86_64)
 These MUST match the Rust `_opaque` padding exactly:
 - `pjsua_config`        = **2648** bytes (Rust: `max_calls: c_uint + thread_cnt: c_uint + [u8; 2640]`)
@@ -232,5 +315,9 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
 - `setup-arch.sh` is for Arch/Omarchy/Manjaro users. Installs `webkit2gtk-4.1` (runtime Tauri dep),
   downloads/installs AppImage, extracts icons, creates desktop entry.
   Sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` when on Wayland (fix white screen on Hyprland).
+  Also checks for `pipewire-alsa` and warns if missing (common audio issue).
   Usage: `./scripts/setup-arch.sh [path|URL]`.
+- `diagnose-arch.sh` is a diagnostic script for Arch-based machines. Collects system info, package
+  versions, EGL/GPU state, PipeWire status, and ALSA config in a single report.
+  Run via: `bash scripts/diagnose-arch.sh` or `bash <(curl -sL https://raw.githubusercontent.com/rafaelclima/mysipphone/dev/scripts/diagnose-arch.sh)`
 - The `.desktop` `Icon` uses absolute path to bypass `XDG_DATA_DIRS` lookup issues.
