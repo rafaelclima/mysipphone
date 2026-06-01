@@ -18,9 +18,22 @@ const CallHistory = lazy(() => import("./views/CallHistory"));
 const Settings = lazy(() => import("./views/Settings"));
 const AccountSetup = lazy(() => import("./views/AccountSetup"));
 
+const pageTransitionCss = `
+  @keyframes pageFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+`;
+
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        height: "100%", display: "flex", flexDirection: "column",
+        animation: "pageFadeIn 0.18s ease-in-out",
+      }}
+    >
+      <style>{pageTransitionCss}</style>
       {children}
     </div>
   );

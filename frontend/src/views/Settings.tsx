@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   Box,
   List,
@@ -77,6 +78,9 @@ function Settings() {
 
   const [audioOpen, setAudioOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
 
   useEffect(() => {
     if (audioOpen && devices.length === 0) {
@@ -490,7 +494,7 @@ function Settings() {
         </ListItem>
         <Box sx={{ px: 2, mt: 2, textAlign: "center" }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-            mySIPPhone v0.1.0
+            mySIPPhone v{appVersion}
           </Typography>
         </Box>
       </Box>
