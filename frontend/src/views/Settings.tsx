@@ -398,7 +398,10 @@ function Settings() {
             return (
               <Box
                 key={tema}
-                onClick={() => setDeviceTheme(tema)}
+                onClick={() => {
+                  setDeviceTheme(tema);
+                  invoke("set_device_theme", { theme: tema }).catch(() => {});
+                }}
                 sx={{
                   flex: 1,
                   display: "flex",

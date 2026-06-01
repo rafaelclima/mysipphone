@@ -97,32 +97,32 @@ function IncomingPopup() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 1.5,
+        gap: 2,
         bgcolor: "background.paper",
         px: 2,
       }}
     >
-      <Avatar sx={{ width: 48, height: 48, bgcolor: "success.main", fontSize: 24 }}>
+      <Avatar sx={{ width: 56, height: 56, bgcolor: "success.main", fontSize: 28 }}>
         {avatarLetter}
       </Avatar>
-      <Typography variant="body1" fontWeight={600} noWrap textAlign="center">
+      <Typography variant="h6" fontWeight={600} noWrap textAlign="center" sx={{ fontSize: "1rem" }}>
         {info.remote_uri}
       </Typography>
-      <Typography variant="caption" color="success.main" fontWeight={500}>
+      <Typography variant="body2" color="success.main" fontWeight={500}>
         Chamada Recebida
       </Typography>
-      <Box sx={{ display: "flex", gap: 3, mt: 1 }}>
+      <Box sx={{ display: "flex", gap: 3, mt: 1.5 }}>
         <IconButton
           onClick={handleReject}
-          sx={{ bgcolor: "error.main", color: "white", "&:hover": { bgcolor: "error.dark" }, width: 48, height: 48 }}
+          sx={{ bgcolor: "error.main", color: "white", "&:hover": { bgcolor: "error.dark" }, width: 56, height: 56 }}
         >
-          <CallEndIcon sx={{ fontSize: 24 }} />
+          <CallEndIcon sx={{ fontSize: 28 }} />
         </IconButton>
         <IconButton
           onClick={handleAnswer}
-          sx={{ bgcolor: "success.main", color: "white", "&:hover": { bgcolor: "success.dark" }, width: 48, height: 48 }}
+          sx={{ bgcolor: "success.main", color: "white", "&:hover": { bgcolor: "success.dark" }, width: 56, height: 56 }}
         >
-          <CallIcon sx={{ fontSize: 24 }} />
+          <CallIcon sx={{ fontSize: 28 }} />
         </IconButton>
       </Box>
     </Box>

@@ -15,6 +15,7 @@ pub struct AppState {
     pub database: Option<std::sync::Arc<persistence::Database>>,
     pub incoming_call_info: Option<IncomingCallInfo>,
     pub current_popup_label: Option<String>,
+    pub device_theme: String,
 }
 
 impl AppState {
@@ -46,6 +47,7 @@ impl AppState {
             database,
             incoming_call_info: None,
             current_popup_label: None,
+            device_theme: "iphone".to_string(),
         }
     }
 

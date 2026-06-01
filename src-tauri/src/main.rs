@@ -139,14 +139,22 @@ async fn main() {
                                         app.set_incoming_call_info(call_id, remote_uri.clone());
                                     }
 
+                                    // Read device theme from AppState
+                                    let theme = {
+                                        let app = handle.state::<Arc<Mutex<AppState>>>();
+                                        let app = app.lock().await;
+                                        app.device_theme.clone()
+                                    };
+
                                     // Create popup with unique label (no label conflict)
+                                    let popup_url = format!("/?theme={}", theme);
                                     match WebviewWindowBuilder::new(
                                         &handle,
                                         &popup_label,
-                                        WebviewUrl::App("/".into()),
+                                        WebviewUrl::App(popup_url.into()),
                                     )
                                     .title("")
-                                    .inner_size(300.0, 180.0)
+                                    .inner_size(320.0, 240.0)
                                     .always_on_top(true)
                                     .decorations(false)
                                     .resizable(false)
@@ -157,7 +165,7 @@ async fn main() {
                                             if let Some(monitor) = popup.primary_monitor().ok().flatten() {
                                                 let size = monitor.size();
                                                 let _ = popup.set_position(tauri::PhysicalPosition::new(
-                                                    (size.width as f64 - 310.0).max(0.0) as i32,
+                                                    (size.width as f64 - 330.0).max(0.0) as i32,
                                                     10,
                                                 ));
                                             }
@@ -280,6 +288,7 @@ async fn main() {
             commands::set_audio_mute,
             commands::get_incoming_call_info,
             commands::set_window_corner_radius,
+            commands::set_device_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

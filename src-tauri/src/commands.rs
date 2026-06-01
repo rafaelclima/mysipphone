@@ -297,3 +297,13 @@ pub async fn set_audio_mute(
 pub fn set_window_corner_radius(radius: f64) -> Result<(), String> {
     crate::window_utils::set_corner_radius(radius)
 }
+
+#[tauri::command]
+pub async fn set_device_theme(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    theme: String,
+) -> Result<(), String> {
+    let mut app = state.lock().await;
+    app.device_theme = theme;
+    Ok(())
+}
