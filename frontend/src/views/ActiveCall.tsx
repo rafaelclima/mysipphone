@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Box, Typography, IconButton, Avatar, Button, TextField } from "@mui/material";
-import CallEndIcon from "@mui/icons-material/CallEnd";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import DialpadIcon from "@mui/icons-material/Dialpad";
@@ -13,8 +12,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallStore } from "../store/useCallStore";
 import { useTranslation } from "../i18n";
+import { useSettingsStore } from "../store/useSettingsStore";
 import IncomingBanner from "../components/IncomingBanner";
 import { SnackbarAlert } from "../components/SnackbarAlert";
+import { CallEndIcon } from "../theme/icons";
 
 const DTMF_KEYS = [
   ["1", "2", "3"],
@@ -38,6 +39,7 @@ function ActiveCall() {
   const incomingCall = useCallStore((s) => s.incomingCall);
   const setMuted = useCallStore((s) => s.setMuted);
   const setHold = useCallStore((s) => s.setHold);
+  const deviceTheme = useSettingsStore((s) => s.deviceTheme);
 
   const [duration, setDuration] = useState(call?.durationSecs ?? 0);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -293,7 +295,7 @@ function ActiveCall() {
           "&:hover": { bgcolor: "error.dark" },
         }}
       >
-        <CallEndIcon sx={{ fontSize: 32 }} />
+        <CallEndIcon deviceTheme={deviceTheme} sx={{ fontSize: 32 }} />
       </IconButton>
 
       <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />

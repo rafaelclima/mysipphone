@@ -45,6 +45,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { DEVICE_THEMES } from "../theme/deviceThemes";
 import { useAuthStore } from "../store/useAuthStore";
 import { useAudioDevicesStore } from "../store/useAudioDevicesStore";
 import { useTranslation } from "../i18n";
@@ -389,7 +390,7 @@ function Settings() {
         <Box sx={{ display: "flex", gap: 1, px: 2, pb: 1 }}>
           {(["iphone", "galaxy", "pixel"] as const).map((tema) => {
             const selected = deviceTheme === tema;
-            const previewColor = tema === "iphone" ? "#1a1a1c" : tema === "galaxy" ? "#1c1c1e" : "#1f1f1f";
+            const cfg = DEVICE_THEMES[tema];
             return (
               <Box
                 key={tema}
@@ -417,7 +418,7 @@ function Settings() {
                     borderRadius: 1.5,
                     border: "1.5px solid",
                     borderColor: "grey.500",
-                    bgcolor: previewColor,
+                    bgcolor: cfg.shellColor,
                     position: "relative",
                     overflow: "hidden",
                     display: "flex",
@@ -433,7 +434,7 @@ function Settings() {
                         transform: "translateX(-50%)",
                         width: 20,
                         height: 7,
-                        bgcolor: previewColor,
+                        bgcolor: cfg.shellColor,
                         borderBottomLeftRadius: 3,
                         borderBottomRightRadius: 3,
                         zIndex: 1,
@@ -455,7 +456,7 @@ function Settings() {
                     />
                   )}
                   <Box sx={{ flex: 1, mx: 0.5, my: 0.5, borderRadius: 0.5, bgcolor: "background.paper" }} />
-                  <Box sx={{ height: 6, bgcolor: previewColor }} />
+                  <Box sx={{ height: 6, bgcolor: cfg.shellColor }} />
                 </Box>
                 <Typography variant="caption" sx={{ fontSize: "0.65rem", fontWeight: selected ? 700 : 400, textTransform: "capitalize" }}>
                   {t(`device_theme.${tema}`)}

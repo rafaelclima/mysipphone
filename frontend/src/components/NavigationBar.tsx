@@ -1,12 +1,9 @@
 import { BottomNavigation, BottomNavigationAction, Box } from "@mui/material";
-import DialpadIcon from "@mui/icons-material/Dialpad";
-import ContactsIcon from "@mui/icons-material/Contacts";
-import HistoryIcon from "@mui/icons-material/History";
-import SettingsIcon from "@mui/icons-material/Settings";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "../i18n";
 import { DEVICE_THEMES } from "../theme/deviceThemes";
 import type { DeviceTheme } from "../theme/deviceThemes";
+import { DialpadIcon, ContactsNavIcon, HistoryNavIcon, SettingsNavIcon } from "../theme/icons";
 
 interface NavigationBarProps {
   deviceTheme: DeviceTheme;
@@ -29,7 +26,7 @@ function NavigationBar({ deviceTheme }: NavigationBarProps) {
   return (
     <Box
       sx={{
-        bgcolor: cfg.shellColor,
+        bgcolor: cfg.navBgColor,
         "& .MuiBottomNavigation-root": {
           bgcolor: "transparent",
         },
@@ -60,10 +57,10 @@ function NavigationBar({ deviceTheme }: NavigationBarProps) {
           },
         }}
       >
-        <BottomNavigationAction label={t("nav.dial")} icon={<DialpadIcon />} />
-        <BottomNavigationAction label={t("nav.contacts")} icon={<ContactsIcon />} />
-        <BottomNavigationAction label={t("nav.history")} icon={<HistoryIcon />} />
-        <BottomNavigationAction label={t("nav.settings")} icon={<SettingsIcon />} />
+        <BottomNavigationAction label={t("nav.dial")} icon={<DialpadIcon deviceTheme={deviceTheme} />} />
+        <BottomNavigationAction label={t("nav.contacts")} icon={<ContactsNavIcon deviceTheme={deviceTheme} />} />
+        <BottomNavigationAction label={t("nav.history")} icon={<HistoryNavIcon deviceTheme={deviceTheme} />} />
+        <BottomNavigationAction label={t("nav.settings")} icon={<SettingsNavIcon deviceTheme={deviceTheme} />} />
       </BottomNavigation>
       <Box
         sx={{

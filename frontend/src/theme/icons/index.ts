@@ -1,3 +1,9 @@
 export { SignalIcon } from "./signal";
 export { DeviceWifiIcon } from "./wifi";
 export { BatteryIcon } from "./battery";
+export { DialpadIcon } from "./dialpad";
+export { ContactsNavIcon } from "./contacts";
+export { HistoryNavIcon } from "./history";
+export { SettingsNavIcon } from "./settings";
+export { CallIcon } from "./call";
+export { CallEndIcon } from "./callEnd";

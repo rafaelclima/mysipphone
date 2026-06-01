@@ -53,13 +53,14 @@ function StatusBar({ deviceTheme }: StatusBarProps) {
       sx={{
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "flex-start",
+        alignItems: "flex-end",
         px: 2,
         pt: cfg.statusBarPt,
-        pb: 0.25,
+        pb: 0.35,
         bgcolor: cfg.shellColor,
         color: "white",
         zIndex: 5,
+        minHeight: 20,
       }}
     >
       <Typography
@@ -101,3 +102,4 @@ function StatusBar({ deviceTheme }: StatusBarProps) {
 }
 
 export default StatusBar;
+

@@ -1,10 +1,10 @@
 import { Box, Typography, IconButton, Avatar } from "@mui/material";
-import CallIcon from "@mui/icons-material/Call";
-import CallEndIcon from "@mui/icons-material/CallEnd";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallStore, Call } from "../store/useCallStore";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../i18n";
+import { useSettingsStore } from "../store/useSettingsStore";
+import { CallIcon, CallEndIcon } from "../theme/icons";
 
 function IncomingBanner({ call }: { call: Call }) {
   const { t } = useTranslation();
@@ -12,6 +12,7 @@ function IncomingBanner({ call }: { call: Call }) {
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
   const setHold = useCallStore((s) => s.setHold);
   const activeCallId = useCallStore((s) => s.activeCallId);
+  const deviceTheme = useSettingsStore((s) => s.deviceTheme);
 
   const handleAnswer = async () => {
     if (activeCallId) {
@@ -83,14 +84,14 @@ function IncomingBanner({ call }: { call: Call }) {
         size="small"
         sx={{ bgcolor: "success.main", color: "white", "&:hover": { bgcolor: "success.dark" } }}
       >
-        <CallIcon sx={{ fontSize: 20 }} />
+        <CallIcon deviceTheme={deviceTheme} sx={{ fontSize: 20 }} />
       </IconButton>
       <IconButton
         onClick={handleReject}
         size="small"
         sx={{ bgcolor: "error.main", color: "white", "&:hover": { bgcolor: "error.dark" } }}
       >
-        <CallEndIcon sx={{ fontSize: 20 }} />
+        <CallEndIcon deviceTheme={deviceTheme} sx={{ fontSize: 20 }} />
       </IconButton>
     </Box>
   );

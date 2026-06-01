@@ -1,18 +1,19 @@
 import { useEffect } from "react";
 import { Box, Typography, IconButton, Avatar } from "@mui/material";
-import CallIcon from "@mui/icons-material/Call";
-import CallEndIcon from "@mui/icons-material/CallEnd";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { useCallStore } from "../store/useCallStore";
 import { useTranslation } from "../i18n";
+import { useSettingsStore } from "../store/useSettingsStore";
+import { CallIcon, CallEndIcon } from "../theme/icons";
 
 function IncomingCall() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const incomingCall = useCallStore((s) => s.incomingCall);
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
+  const deviceTheme = useSettingsStore((s) => s.deviceTheme);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +99,7 @@ function IncomingCall() {
             "&:hover": { bgcolor: "error.dark" },
           }}
         >
-          <CallEndIcon sx={{ fontSize: 32 }} />
+          <CallEndIcon deviceTheme={deviceTheme} sx={{ fontSize: 32 }} />
         </IconButton>
         <IconButton
           onClick={handleAnswer}
@@ -110,7 +111,7 @@ function IncomingCall() {
             "&:hover": { bgcolor: "success.dark" },
           }}
         >
-          <CallIcon sx={{ fontSize: 32 }} />
+          <CallIcon deviceTheme={deviceTheme} sx={{ fontSize: 32 }} />
         </IconButton>
       </Box>
     </Box>

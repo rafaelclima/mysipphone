@@ -122,7 +122,7 @@ function PhoneShell({ children }: PhoneShellProps) {
         sx={{
           flex: 1,
           overflow: "auto",
-          bgcolor: "background.paper",
+          bgcolor: cfg.contentBgColor,
           mx: 0.5,
           mb: 0.5,
           borderRadius: `${cfg.cornerRadius - 6}px ${cfg.cornerRadius - 6}px 0 0`,
