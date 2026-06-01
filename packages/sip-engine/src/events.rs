@@ -18,10 +18,7 @@ pub enum CallEvent {
         call_id: i64,
         remote_uri: String,
     },
-    DtmfReceived {
-        call_id: String,
-        digit: String,
-    },
+
     Error {
         call_id: Option<String>,
         message: String,

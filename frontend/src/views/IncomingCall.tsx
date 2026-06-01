@@ -39,8 +39,8 @@ function IncomingCall() {
       emit("popup:dismiss", {}).catch(() => {});
       setIncomingCall(null);
       navigate(`/call/${incomingCall.id}`);
-    } catch (err) {
-      console.error("Answer failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
   };
 
@@ -48,8 +48,8 @@ function IncomingCall() {
     try {
       await invoke("reject", { callId: incomingCall.id });
       emit("popup:dismiss", {}).catch(() => {});
-    } catch (err) {
-      console.error("Reject failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
     setIncomingCall(null);
     navigate("/");

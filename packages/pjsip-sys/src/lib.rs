@@ -151,10 +151,6 @@ extern "C" {
     pub fn pjsua_destroy() -> pj_status_t;
 }
 
-extern "C" {
-    pub fn pjsua_destroy2(flags: c_uint) -> pj_status_t;
-}
-
 // ── Account management ──
 
 extern "C" {

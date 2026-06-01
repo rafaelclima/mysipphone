@@ -61,8 +61,8 @@ function IncomingPopup() {
     try {
       await invoke("answer", { callId: String(info.call_id) });
       await emit("popup:answer", { callId: String(info.call_id) });
-    } catch (err) {
-      console.error("Answer failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
     await focusMain();
     await closeSelf();
@@ -73,8 +73,8 @@ function IncomingPopup() {
     try {
       await invoke("reject", { callId: String(info.call_id) });
       await emit("popup:reject", { callId: String(info.call_id) });
-    } catch (err) {
-      console.error("Reject failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
     await closeSelf();
   };

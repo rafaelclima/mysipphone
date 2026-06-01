@@ -19,24 +19,24 @@ function IncomingBanner({ call }: { call: Call }) {
       try {
         await invoke("hold", { callId: activeCallId });
         setHold(activeCallId, true);
-      } catch (err) {
-        console.error("Hold failed:", err);
+      } catch {
+        // Error handled silently; SnackbarAlert in Rodada 2
       }
     }
     try {
       await invoke("answer", { callId: call.id });
       setIncomingCall(null);
       navigate(`/call/${call.id}`, { replace: true });
-    } catch (err) {
-      console.error("Answer failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
   };
 
   const handleReject = async () => {
     try {
       await invoke("reject", { callId: call.id });
-    } catch (err) {
-      console.error("Reject failed:", err);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
     }
     setIncomingCall(null);
   };

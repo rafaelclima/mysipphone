@@ -178,14 +178,6 @@ async fn main() {
                                         }),
                                     )
                                 }
-                                sip_engine::CallEvent::DtmfReceived { call_id, digit } => (
-                                    "sip:dtmf",
-                                    serde_json::json!({
-                                        "type": "DtmfReceived",
-                                        "call_id": call_id,
-                                        "digit": digit,
-                                    }),
-                                ),
                                 sip_engine::CallEvent::CallEnded(log_entry) => {
                                     // Save call log in background to avoid blocking event loop
                                     if let Some(ref db) = db {

@@ -428,7 +428,7 @@ impl PjsuaEngine {
             let name = unsafe { CStr::from_ptr(dev.name.as_ptr()) }
                 .to_string_lossy();
             let lc = name.to_lowercase();
-            eprintln!(
+            tracing::info!(
                 "  device {}: {} (in={}, out={}, rate={})",
                 i,
                 name,

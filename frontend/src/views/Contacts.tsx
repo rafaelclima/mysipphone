@@ -94,8 +94,8 @@ function Contacts() {
       try {
         await invoke("add_contact", { contact: c });
         addContact(c);
-      } catch (err) {
-        console.error(`Failed to import ${c.name}:`, err);
+      } catch {
+        // Error handled silently; SnackbarAlert in Rodada 2
       }
     }
     setImportDialogOpen(false);
