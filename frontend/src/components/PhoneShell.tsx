@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box, Paper } from "@mui/material";
+import { Box, Paper, useTheme } from "@mui/material";
 import StatusBar from "./StatusBar";
 import NavigationBar from "./NavigationBar";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -97,6 +97,12 @@ function CameraCutout({ deviceTheme }: { deviceTheme: DeviceTheme }) {
 function PhoneShell({ children }: PhoneShellProps) {
   const deviceTheme = useSettingsStore((s) => s.deviceTheme);
   const cfg = DEVICE_THEMES[deviceTheme];
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
+  const shellColor = isDark ? cfg.shellColor : cfg.shellColorLight;
+  const contentBg = isDark ? cfg.contentBgColor : cfg.contentBgColorLight;
+  const navBg = isDark ? cfg.navBgColor : cfg.navBgColorLight;
 
   useEffect(() => {
     invoke("set_window_corner_radius", { radius: cfg.cornerRadius }).catch(() => {});
@@ -113,16 +119,16 @@ function PhoneShell({ children }: PhoneShellProps) {
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        bgcolor: cfg.shellColor,
+        bgcolor: shellColor,
       }}
     >
-      <StatusBar deviceTheme={deviceTheme} />
+      <StatusBar deviceTheme={deviceTheme} shellColor={shellColor} />
       <CameraCutout deviceTheme={deviceTheme} />
       <Box
         sx={{
           flex: 1,
           overflow: "auto",
-          bgcolor: cfg.contentBgColor,
+          bgcolor: contentBg,
           mx: 0.5,
           mb: 0.5,
           borderRadius: `${cfg.cornerRadius - 6}px ${cfg.cornerRadius - 6}px 0 0`,
@@ -133,7 +139,7 @@ function PhoneShell({ children }: PhoneShellProps) {
           {children}
         </Box>
       </Box>
-      <NavigationBar deviceTheme={deviceTheme} />
+      <NavigationBar deviceTheme={deviceTheme} navBgColor={navBg} />
     </Paper>
   );
 }
