@@ -534,7 +534,6 @@ function Settings() {
               <li>{t("settings.help_contacts_2")}</li>
               <li>{t("settings.help_contacts_3")}</li>
               <li>{t("settings.help_contacts_4")}</li>
-              <li>{t("settings.help_contacts_5")}</li>
             </ul>
             <p><strong>{t("settings.help_audio")}</strong></p>
             <ul>
