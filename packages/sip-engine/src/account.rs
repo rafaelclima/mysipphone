@@ -484,13 +484,14 @@ impl PjsuaEngine {
                 dev.output_count,
                 dev.default_samples_per_sec,
             );
-            if dev.output_count == 0 && dev.input_count == 0 {
-                continue;
-            }
             let entry = (i as i32, name.to_string());
-            if lc.contains("pch") || lc.contains("hda") || lc.contains("hw:") || lc.contains("plughw:") {
+            if lc.contains("pipewire") {
                 try_order.insert(0, entry);
-            } else if lc.contains("pipewire") || lc.contains("jack") {
+            } else if dev.output_count == 0 && dev.input_count == 0 {
+                continue;
+            } else if lc.contains("pch") || lc.contains("hda") || lc.contains("hw:") || lc.contains("plughw:") {
+                try_order.insert(0, entry);
+            } else if lc.contains("jack") {
                 fallback.push(entry);
             } else {
                 try_order.push(entry);

@@ -15,6 +15,8 @@ pub use state::AppState;
 
 #[tokio::main]
 async fn main() {
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
