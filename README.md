@@ -1,43 +1,8 @@
-<style>
-  #pt:checked ~ #en-content,
-  #en:checked ~ #pt-content {
-    display: none;
-  }
-  #pt:checked ~ .lang-bar label[for="pt"],
-  #en:checked ~ .lang-bar label[for="en"] {
-    opacity: 1;
-    border-bottom: 2px solid #1976d2;
-  }
-  .lang-bar {
-    text-align: center;
-    margin: 16px 0;
-  }
-  .lang-bar label {
-    font-size: 24px;
-    cursor: pointer;
-    opacity: 0.4;
-    padding: 4px 12px;
-    margin: 0 4px;
-    transition: opacity 0.2s;
-    display: inline-block;
-  }
-  .lang-bar label:hover {
-    opacity: 0.8;
-  }
-  .lang-radio { display: none; }
-</style>
-
-<input type="radio" id="pt" name="lang" class="lang-radio" checked>
-<input type="radio" id="en" name="lang" class="lang-radio">
-
-<div class="lang-bar">
-  <label for="pt">🇧🇷 Português</label>
-  <label for="en">🇺🇸 English</label>
-</div>
+<p align="center">
+  <strong>🇧🇷 Português</strong> &nbsp;·&nbsp; <a href="#en">🇺🇸 English</a>
+</p>
 
 <!-- ─── PORTUGUÊS (padrão) ─── -->
-
-<div id="pt-content">
 
 # mySIPPhone
 
@@ -263,11 +228,15 @@ pjsip (C) → pjsip-sys (FFI) → sip-engine (Rust)
 
 MIT
 
-</div>
+---
+
+<h1 id="en"></h1>
+
+<p align="center">
+  <a href="#"><strong>🇧🇷 Português</strong></a> &nbsp;·&nbsp; <strong>🇺🇸 English</strong>
+</p>
 
 <!-- ─── ENGLISH ─── -->
-
-<div id="en-content">
 
 # mySIPPhone
 
@@ -492,5 +461,3 @@ Audio: `ALSA ← audio-engine ← Tauri commands ← React`
 ## License
 
 MIT
-
-</div>
