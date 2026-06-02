@@ -8,6 +8,7 @@ export interface DeviceThemeConfig {
   cameraSize: number;
   timeAlign: "center" | "left";
   shellColor: string;
+  shellColorLight: string;
   statusBarPt: number;
   homeIndicator: {
     width: number;
@@ -22,7 +23,9 @@ export interface DeviceThemeConfig {
   fontFamily: string;
   shapeBorderRadius: number;
   navBgColor: string;
+  navBgColorLight: string;
   contentBgColor: string;
+  contentBgColorLight: string;
   iconStyle: "outline" | "bold" | "mui";
 }
 
@@ -33,6 +36,7 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     cameraSize: 18,
     timeAlign: "left",
     shellColor: "#000000",
+    shellColorLight: "#1C1C1E",
     statusBarPt: 3,
     homeIndicator: { width: 128, height: 5, bottom: 6, borderRadius: 2.5 },
     palette: {
@@ -56,7 +60,9 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     fontFamily: `"Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`,
     shapeBorderRadius: 12,
     navBgColor: "#1C1C1E",
+    navBgColorLight: "#F2F2F7",
     contentBgColor: "#1C1C1E",
+    contentBgColorLight: "#F2F2F7",
     iconStyle: "outline",
   },
   galaxy: {
@@ -65,6 +71,7 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     cameraSize: 16,
     timeAlign: "left",
     shellColor: "#0D0D1A",
+    shellColorLight: "#2D2D2D",
     statusBarPt: 1.5,
     homeIndicator: { width: 80, height: 4, bottom: 5, borderRadius: 2 },
     palette: {
@@ -88,7 +95,9 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     fontFamily: `"Roboto Condensed", "Roboto", "Noto Sans", sans-serif`,
     shapeBorderRadius: 10,
     navBgColor: "#0D0D1A",
+    navBgColorLight: "#E8EDF2",
     contentBgColor: "#1A1A2E",
+    contentBgColorLight: "#E8EDF2",
     iconStyle: "bold",
   },
   pixel: {
@@ -97,6 +106,7 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     cameraSize: 16,
     timeAlign: "center",
     shellColor: "#1A1A1A",
+    shellColorLight: "#2D2D2D",
     statusBarPt: 1.5,
     homeIndicator: { width: 64, height: 3, bottom: 4, borderRadius: 1.5 },
     palette: {
@@ -120,7 +130,9 @@ export const DEVICE_THEMES: Record<DeviceTheme, DeviceThemeConfig> = {
     fontFamily: `"Nunito", "Google Sans", "Product Sans", sans-serif`,
     shapeBorderRadius: 14,
     navBgColor: "#2D2D2D",
+    navBgColorLight: "#FFFBFE",
     contentBgColor: "#2D2D2D",
+    contentBgColorLight: "#FFFBFE",
     iconStyle: "mui",
   },
 };

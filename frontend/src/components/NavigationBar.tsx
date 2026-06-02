@@ -7,9 +7,10 @@ import { DialpadIcon, ContactsNavIcon, HistoryNavIcon, SettingsNavIcon } from ".
 
 interface NavigationBarProps {
   deviceTheme: DeviceTheme;
+  navBgColor: string;
 }
 
-function NavigationBar({ deviceTheme }: NavigationBarProps) {
+function NavigationBar({ deviceTheme, navBgColor }: NavigationBarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,7 +27,7 @@ function NavigationBar({ deviceTheme }: NavigationBarProps) {
   return (
     <Box
       sx={{
-        bgcolor: cfg.navBgColor,
+        bgcolor: navBgColor,
         "& .MuiBottomNavigation-root": {
           bgcolor: "transparent",
         },

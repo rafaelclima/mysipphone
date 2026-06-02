@@ -1,4 +1,4 @@
-import { Box, Typography, Tooltip } from "@mui/material";
+import { Box, Typography, Tooltip, useTheme } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -12,15 +12,18 @@ import type { DeviceTheme } from "../theme/deviceThemes";
 
 interface StatusBarProps {
   deviceTheme: DeviceTheme;
+  shellColor: string;
 }
 
-function StatusBar({ deviceTheme }: StatusBarProps) {
+function StatusBar({ deviceTheme, shellColor }: StatusBarProps) {
   const [time, setTime] = useState(
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   );
   const authState = useAuthStore((s) => s.state);
   const { t } = useTranslation();
+  const theme = useTheme();
   const cfg = DEVICE_THEMES[deviceTheme];
+  const fgColor = theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1E";
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,8 +60,8 @@ function StatusBar({ deviceTheme }: StatusBarProps) {
         px: 2,
         pt: cfg.statusBarPt,
         pb: 0.35,
-        bgcolor: cfg.shellColor,
-        color: "white",
+        bgcolor: shellColor,
+        color: fgColor,
         zIndex: 5,
         minHeight: 20,
       }}
