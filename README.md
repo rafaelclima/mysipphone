@@ -1,19 +1,84 @@
+<style>
+  #pt:checked ~ #en-content,
+  #en:checked ~ #pt-content {
+    display: none;
+  }
+  #pt:checked ~ .lang-bar label[for="pt"],
+  #en:checked ~ .lang-bar label[for="en"] {
+    opacity: 1;
+    border-bottom: 2px solid #1976d2;
+  }
+  .lang-bar {
+    text-align: center;
+    margin: 16px 0;
+  }
+  .lang-bar label {
+    font-size: 24px;
+    cursor: pointer;
+    opacity: 0.4;
+    padding: 4px 12px;
+    margin: 0 4px;
+    transition: opacity 0.2s;
+    display: inline-block;
+  }
+  .lang-bar label:hover {
+    opacity: 0.8;
+  }
+  .lang-radio { display: none; }
+</style>
+
+<input type="radio" id="pt" name="lang" class="lang-radio" checked>
+<input type="radio" id="en" name="lang" class="lang-radio">
+
+<div class="lang-bar">
+  <label for="pt">🇧🇷 Português</label>
+  <label for="en">🇺🇸 English</label>
+</div>
+
+<!-- ─── PORTUGUÊS (padrão) ─── -->
+
+<div id="pt-content">
+
 # mySIPPhone
 
-Desktop SIP softphone for Linux. Connects directly to Asterisk/Issabel PBX on local network. Real pjsip stack + native ALSA audio — no cloud, no WebRTC, no browser audio.
+[![Licença: MIT](https://img.shields.io/badge/Licença-MIT-blue.svg)](LICENSE)
 
-Built with **Tauri 2** (Rust) + **pjsip 2.17** + **React 18 / MUI 6**.
+**Softphone SIP para desktop Linux** — conecta-se diretamente a uma central Asterisk/Issabel na rede local. Construído com stack real pjsip e áudio ALSA nativo. Sem nuvem, sem WebRTC, sem áudio via navegador.
 
-## Screenshots
+## Capturas de Tela
 
-| Dialer & Active Call | Account Setup & Settings | Incoming Call |
+| Discador & Chamada Ativa | Config. de Conta & Ajustes | Chamada Recebida |
 |---|---|---|
-| ![Dialer](resources/prints/01.png) | ![Account Setup](resources/prints/02.png) | ![Incoming Call](resources/prints/03.png) |
-| ![Active Call](resources/prints/04.png) | ![Settings](resources/prints/05.png) | |
+| ![Discador](resources/prints/01.png) | ![Config. de Conta](resources/prints/02.png) | ![Chamada Recebida](resources/prints/03.png) |
+| ![Chamada Ativa](resources/prints/04.png) | ![Ajustes](resources/prints/05.png) | |
 
-## Install
+## Funcionalidades
 
-### AppImage (recomendado — não precisa de ferramentas de desenvolvimento)
+| Funcionalidade | Status |
+|----------------|--------|
+| Registro SIP (reconexão automática) | ✅ |
+| Chamadas realizadas (INVITE + áudio RTP) | ✅ |
+| Tom de ringback ao chamar | ✅ |
+| Chamadas recebidas (toque + atender) | ✅ |
+| Captura de chamada `*8#` (+ direcionada `*8#ramal`) | ✅ |
+| Espera / Retomar | ✅ |
+| Mudo | ✅ |
+| Transferência cega | ✅ |
+| Chamada em espera / alternar | ✅ |
+| DTMF (RFC 2833) | ✅ |
+| Histórico de chamadas (SQLite) | ✅ |
+| Contatos (CRUD + importação CSV) | ✅ |
+| Múltiplas linhas | ✅ |
+| Detecção automática de dispositivos de áudio | ✅ |
+| Tema escuro / claro | ✅ |
+| Temas de aparelho (iPhone / Galaxy / Pixel) | ✅ |
+| Popup de chamada recebida | ✅ |
+| Internacionalização PT-BR / EN | ✅ |
+| Instalação por usuário (sem sudo) | ✅ |
+
+## Instalação Rápida
+
+### AppImage (recomendado)
 
 Baixe o AppImage mais recente da [página de releases](https://github.com/rafaelclima/mysipphone/releases):
 
@@ -22,28 +87,18 @@ chmod +x mySIPPhone_*.AppImage
 ./mySIPPhone_*.AppImage
 ```
 
-Alternativamente, copie para qualquer lugar (~/.local/bin, /opt, etc.) e execute.
-
 ### Arch Linux / Omarchy / Manjaro
-
-Pré-requisito: `webkit2gtk-4.1` (runtime do Tauri, não incluso no AppImage):
 
 ```bash
 sudo pacman -S --needed webkit2gtk-4.1
-```
-
-Setup automático (instala deps + baixa AppImage + cria atalho no menu):
-
-```bash
 git clone https://github.com/rafaelclima/mysipphone.git
 cd mysipphone
 ./scripts/setup-arch.sh
 ```
 
-Omarchy 3.8 usa Hyprland (Wayland). O script detecta e já aplica
-`WEBKIT_DISABLE_DMABUF_RENDERER=1` automaticamente no atalho do menu.
+O script detecta automaticamente o Hyprland (Wayland) e aplica `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
 
-### Build a partir do fonte (para contribuidores)
+### Compilar do código-fonte
 
 ```bash
 git clone https://github.com/rafaelclima/mysipphone.git
@@ -51,35 +106,263 @@ cd mysipphone
 ./scripts/install.sh
 ```
 
-No sudo required. Instala em `~/.local/`:
+Sem sudo. Instala em `~/.local/`:
+- `~/.local/bin/mysipphone` — binário
+- `~/.local/lib/mysipphone/` — bibliotecas pjsip
+- `~/.local/share/applications/mysipphone.desktop` — atalho no menu
+- `~/.local/share/icons/hicolor/*/apps/mysipphone.png` — ícones
+
+### Dependências de Runtime
+
+| Biblioteca | Finalidade |
+|------------|------------|
+| GTK3 + WebKit2GTK 4.1 | Webview do Tauri |
+| ALSA (`libasound2`) | Áudio (PipeWire é compatível) |
+
+## Como Usar
+
+1. **Abra o app** — tela de configuração de conta na primeira execução.
+2. **Informe seus dados SIP**: ramal, domínio, usuário, senha.
+3. **Disque um ramal** e pressione o botão verde de chamada.
+4. **Receba chamadas**: o app toca — atenda ou recuse.
+5. **Captura (`*8#`)**: disque `*8#` para capturar chamada do grupo, ou `*8#ramal` para captura direcionada.
+6. **Espera / Retomar**: pressione Espera; pressione novamente para retomar.
+7. **Transferência cega**: pressione Transferir → digite o ramal → confirme. Cancele com ✕ ou Escape.
+8. **Chamada em espera**: segunda chamada exibe um banner — atender coloca a primeira em espera.
+9. **Contatos**: adicione, edite, exclua. Importação CSV disponível.
+10. **Ajustes**: gerencie sua conta, escolha dispositivos de áudio, alterne tema escuro, teste caixas de som, mude o tema do aparelho.
+
+### Configuração da Conta
+
+| Campo | Exemplo |
+|-------|---------|
+| Ramal | 595 |
+| Domínio da Central | 192.168.54.2 |
+| Usuário | 595 |
+| Senha | sua_senha_sip |
+
+Registro automático na central. Indicador verde na barra de status confirma o registro.
+
+## Desenvolvimento
+
+### Dependências do Sistema
+
+```bash
+# Ubuntu 24.04 / Pop!_OS 24.04 / Debian 12+
+sudo apt install -y \
+  build-essential pkg-config curl make \
+  libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+  librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+  libasound2-dev \
+  libx11-dev libxext-dev libxft-dev libxinerama-dev \
+  libxcursor-dev libxrandr-dev libxi-dev \
+  uuid-dev libtool autoconf automake g++ nodejs npm
+```
+
+### Configuração Inicial
+
+```bash
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+
+# Node.js (via nvm)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+nvm install --lts
+
+# pjsip (compilação única)
+./scripts/setup-pjsip.sh
+
+# Dependências do frontend
+cd frontend && npm install && cd ..
+```
+
+### Ambiente (a cada shell)
+
+```bash
+source ./scripts/set-env.sh
+```
+
+### Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `cargo tauri dev` | App completo com recarga automática |
+| `cargo check` | Verificar compilação |
+| `cargo clippy --all-targets -- -D warnings` | Lint Rust |
+| `cargo test -p pjsip-sys` | Verificar tamanhos das structs FFI |
+| `npm run dev` (em `frontend/`) | Servidor de desenvolvimento |
+| `npx tsc --noEmit` (em `frontend/`) | Typecheck TypeScript |
+| `npm run lint` (em `frontend/`) | Lint do frontend |
+| `./scripts/install.sh` | Instalar em `~/.local/` |
+| `./scripts/build-appimage.sh` | Gerar AppImage + .deb |
+
+### Checklist Pré-Commit
+
+1. `cargo test -p pjsip-sys` — verificar structs FFI
+2. `cargo check`
+3. `cargo clippy --all-targets -- -D warnings`
+4. `npm run lint` (em `frontend/`)
+5. `npx tsc --noEmit` (em `frontend/`)
+
+## Solução de Problemas
+
+### `pjsua_init failed: 70004 (PJ_EINVAL)`
+
+Tamanho incorreto de struct FFI. Execute `cargo test -p pjsip-sys`. Veja `packages/pjsip-sys/src/lib.rs` — o padding `_opaque` deve corresponder ao tamanho real da struct C.
+
+### `pkg-config: libpjproject not found`
+
+Execute `./scripts/setup-pjsip.sh`, depois `source ./scripts/set-env.sh`.
+
+### Nenhum dispositivo de áudio
+
+```bash
+aplay -l          # listar dispositivos de reprodução
+arecord -l        # listar dispositivos de captura
+sudo apt install pipewire-alsa  # se usar PipeWire
+```
+
+### Ícone genérico no menu
+
+```bash
+gtk-update-icon-cache ~/.local/share/icons/hicolor
+```
+
+## Estrutura do Projeto
+
+```
+packages/
+  pjsip-sys/       Bindings FFI para API C do pjsua
+  sip-engine/      Ciclo de vida pjsip, controle de chamadas
+  audio-engine/    Backend ALSA, ringtone, mudo
+  persistence/     Repositórios SQLite (contas, contatos, histórico)
+  shared/          Tipos sem dependências
+src-tauri/         Shell Tauri (comandos, estado, main)
+frontend/          App React (views, stores, componentes, i18n)
+scripts/           Scripts de build e instalação
+```
+
+## Arquitetura
+
+```
+pjsip (C) → pjsip-sys (FFI) → sip-engine (Rust)
+                                   │
+                              canal mpsc
+                                   │
+                           Evento Tauri (sip:*)
+                                   │
+                            Store Zustand
+                                   │
+                               React UI
+```
+
+Áudio: `ALSA ← audio-engine ← Comandos Tauri ← React`
+
+## Licença
+
+MIT
+
+</div>
+
+<!-- ─── ENGLISH ─── -->
+
+<div id="en-content">
+
+# mySIPPhone
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**Desktop SIP softphone for Linux** — connects directly to an Asterisk/Issabel PBX over local network. Built with real pjsip stack and native ALSA audio. No cloud, no WebRTC, no browser audio.
+
+## Screenshots
+
+| Dialer & Active Call | Account Setup & Settings | Incoming Call |
+|---|---|---|
+| ![Dialer](resources/prints/01.png) | ![Account Setup](resources/prints/02.png) | ![Incoming Call](resources/prints/03.png) |
+| ![Active Call](resources/prints/04.png) | ![Settings](resources/prints/05.png) | |
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| SIP registration (auto-reconnect) | ✅ |
+| Outgoing calls (INVITE + RTP audio) | ✅ |
+| Outgoing ringback tone | ✅ |
+| Incoming calls (ring + answer) | ✅ |
+| Call pickup `*8#` (+ targeted `*8#extension`) | ✅ |
+| Hold / Resume | ✅ |
+| Mute | ✅ |
+| Blind Transfer | ✅ |
+| Call waiting / swap | ✅ |
+| DTMF (RFC 2833) | ✅ |
+| Call history (SQLite) | ✅ |
+| Contacts CRUD + CSV import | ✅ |
+| Multiple lines | ✅ |
+| Audio hotplug detection | ✅ |
+| Dark / Light theme | ✅ |
+| Device themes (iPhone / Galaxy / Pixel) | ✅ |
+| Incoming call popup window | ✅ |
+| PT-BR / EN internationalization | ✅ |
+| Per-user install (no sudo) | ✅ |
+
+## Quick Install
+
+### AppImage (recommended)
+
+Download the latest AppImage from the [releases page](https://github.com/rafaelclima/mysipphone/releases):
+
+```bash
+chmod +x mySIPPhone_*.AppImage
+./mySIPPhone_*.AppImage
+```
+
+### Arch Linux / Omarchy / Manjaro
+
+```bash
+sudo pacman -S --needed webkit2gtk-4.1
+git clone https://github.com/rafaelclima/mysipphone.git
+cd mysipphone
+./scripts/setup-arch.sh
+```
+
+The script auto-detects Hyprland (Wayland) and applies `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+
+### Build from source
+
+```bash
+git clone https://github.com/rafaelclima/mysipphone.git
+cd mysipphone
+./scripts/install.sh
+```
+
+No sudo required. Installs to `~/.local/`:
 - `~/.local/bin/mysipphone` — binary
-- `~/.local/lib/mysipphone/` — bundled pjsip libs
+- `~/.local/lib/mysipphone/` — bundled pjsip libraries
 - `~/.local/share/applications/mysipphone.desktop` — app menu entry
 - `~/.local/share/icons/hicolor/*/apps/mysipphone.png` — app icons
 
-Após instalar, procure **mySIPPhone** no menu de apps ou execute `mysipphone`.
-
-### Dependências de runtime
+### Runtime Dependencies
 
 | Library | Purpose |
 |---------|---------|
-| GTK3 + WebKit2GTK 4.1 | Tauri webview (quase toda distro tem) |
-| ALSA (`libasound2`) | Audio capture/playback (PipeWire tem compat) |
+| GTK3 + WebKit2GTK 4.1 | Tauri webview |
+| ALSA (`libasound2`) | Audio (PipeWire compatible) |
 
-## Usage (quick tutorial)
+## Usage
 
-1. **Launch the app** → Account Setup screen appears on first run.
-2. **Enter your SIP credentials**: extension, domain, user, password — same data you'd configure in any SIP phone (e.g., Linphone, Zoiper, a physical desk phone).
-3. **Dial a number**: type the extension on the dialpad and press the green call button. Outgoing call connects with RTP audio.
-4. **Receive calls**: when someone calls your extension, the app rings — answer or reject.
-5. **Call pickup (`*8#`)**: if a call is ringing at another extension in the same pickup group, dial `*8#` (or `*8#extension` for targeted pickup) — works like a physical phone.
-6. **Hold / Resume**: during a call, press Hold. Press again to resume.
-7. **Blind Transfer**: during a call, press Transfer → type target extension → confirm. Cancel with ✕ or Escape.
-8. **Call waiting**: a second incoming call while active shows a banner — answer puts the first on hold. Swap between calls.
-9. **Contacts**: add/edit/delete contacts. CSV import supported.
-10. **Settings**: manage SIP account, pick audio devices (mic/speaker), toggle dark/light theme, test speakers.
+1. **Launch the app** — Account Setup appears on first run.
+2. **Enter your SIP credentials**: extension, domain, user, password.
+3. **Dial an extension** and press the green call button.
+4. **Receive calls**: app rings — answer or reject.
+5. **Call pickup (`*8#`)**: dial `*8#` to pick up from your group, or `*8#extension` for targeted pickup.
+6. **Hold / Resume**: press Hold; press again to resume.
+7. **Blind Transfer**: press Transfer → enter target extension → confirm. Cancel with ✕ or Escape.
+8. **Call waiting**: second incoming call shows a banner — answer puts the first on hold.
+9. **Contacts**: add, edit, delete. CSV import supported.
+10. **Settings**: manage your SIP account, pick audio devices, toggle dark mode, test speakers, change device theme.
 
-### Account Config
+### Account Configuration
 
 | Field | Example |
 |-------|---------|
@@ -88,30 +371,7 @@ Após instalar, procure **mySIPPhone** no menu de apps ou execute `mysipphone`.
 | Username | 595 |
 | Password | your_sip_password |
 
-The app auto-registers on the PBX. Once registered (green indicator in the status bar), you can place and receive calls.
-
-## Features
-
-| Feature | Status |
-|---------|--------|
-| SIP registration (auto-reconnect) | ✅ |
-| Outgoing calls (INVITE + RTP audio) | ✅ |
-| Incoming calls (ring + answer) | ✅ |
-| Call pickup `*8#` (+ targeted `*8#extension`) | ✅ |
-| Hold / Resume | ✅ |
-| Mute (audio-engine level) | ✅ |
-| Blind Transfer | ✅ |
-| Call waiting / swap | ✅ |
-| DTMF (RFC 2833) | ✅ |
-| Call history (SQLite) | ✅ |
-| Contacts CRUD + CSV import | ✅ |
-| Multiple lines | ✅ |
-| Audio hotplug (2s polling) | ✅ |
-| Dark / Light theme | ✅ |
-| Incoming call popup window | ✅ |
-| PT-BR / EN i18n | ✅ |
-| Per-user install (no sudo) | ✅ |
-| Device themes (iPhone/Galaxy/Pixel) | 🔜 Planned |
+Auto-registers on the PBX. Green indicator in the status bar confirms registration.
 
 ## Development
 
@@ -140,10 +400,10 @@ source "$HOME/.cargo/env"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 nvm install --lts
 
-# pjsip (one-time build from source)
+# pjsip (one-time build)
 ./scripts/setup-pjsip.sh
 
-# Frontend deps
+# Frontend dependencies
 cd frontend && npm install && cd ..
 ```
 
@@ -155,17 +415,17 @@ source ./scripts/set-env.sh
 
 ### Commands
 
-| What | Command |
-|------|---------|
-| Full app (Tauri dev) | `cargo tauri dev` |
-| Check compilation | `cargo check` |
-| Rust lint | `cargo clippy --all-targets -- -D warnings` |
-| Verify FFI struct sizes | `cargo test -p pjsip-sys` |
-| Frontend dev server | `npm run dev` (in `frontend/`) |
-| Frontend typecheck | `npx tsc --noEmit` (in `frontend/`) |
-| Frontend lint | `npm run lint` (in `frontend/`) |
-| Install system-wide | `./scripts/install.sh` |
-| Build AppImage | `./scripts/build-appimage.sh` |
+| Command | Description |
+|---------|-------------|
+| `cargo tauri dev` | Full app with hot-reload |
+| `cargo check` | Check compilation |
+| `cargo clippy --all-targets -- -D warnings` | Rust lint |
+| `cargo test -p pjsip-sys` | Verify FFI struct sizes |
+| `npm run dev` (in `frontend/`) | Frontend dev server |
+| `npx tsc --noEmit` (in `frontend/`) | TypeScript typecheck |
+| `npm run lint` (in `frontend/`) | Frontend lint |
+| `./scripts/install.sh` | Install to `~/.local/` |
+| `./scripts/build-appimage.sh` | Build AppImage + .deb |
 
 ### Pre-Commit Checklist
 
@@ -178,12 +438,15 @@ source ./scripts/set-env.sh
 ## Troubleshooting
 
 ### `pjsua_init failed: 70004 (PJ_EINVAL)`
-FFI struct size mismatch. Run `cargo test -p pjsip-sys` to check. See `packages/pjsip-sys/src/lib.rs` — struct `_opaque` padding must match actual C struct size.
+
+FFI struct size mismatch. Run `cargo test -p pjsip-sys`. See `packages/pjsip-sys/src/lib.rs` — the `_opaque` padding must match the actual C struct size.
 
 ### `pkg-config: libpjproject not found`
-Run `./scripts/setup-pjsip.sh` first, then `source ./scripts/set-env.sh`.
+
+Run `./scripts/setup-pjsip.sh`, then `source ./scripts/set-env.sh`.
 
 ### No audio devices
+
 ```bash
 aplay -l          # list playback devices
 arecord -l        # list capture devices
@@ -191,6 +454,7 @@ sudo apt install pipewire-alsa  # if using PipeWire
 ```
 
 ### Icon shows generic gear in app menu
+
 ```bash
 gtk-update-icon-cache ~/.local/share/icons/hicolor
 ```
@@ -199,14 +463,14 @@ gtk-update-icon-cache ~/.local/share/icons/hicolor
 
 ```
 packages/
-  pjsip-sys/       Raw FFI to pjsua C API (bindings, helpers.c)
-  sip-engine/      pjsip lifecycle, call control, event emission
-  audio-engine/    ALSA backend, ringtone player, mute
-  persistence/     SQLite repos (Account, Contact, CallLog)
-  shared/          Zero-dep types (enums, structs)
+  pjsip-sys/       Raw FFI bindings to pjsua C API
+  sip-engine/      pjsip lifecycle, call control, events
+  audio-engine/    ALSA backend, ringtone, mute
+  persistence/     SQLite repos (accounts, contacts, history)
+  shared/          Zero-dependency types
 src-tauri/         Tauri shell (commands, state, main)
 frontend/          React app (views, stores, components, i18n)
-scripts/           Build & install scripts
+scripts/           Build and install scripts
 ```
 
 ## Architecture
@@ -223,8 +487,10 @@ pjsip (C) → pjsip-sys (FFI) → sip-engine (Rust)
                                React UI
 ```
 
-Audio path: `ALSA ← audio-engine ← Tauri commands ← React`
+Audio: `ALSA ← audio-engine ← Tauri commands ← React`
 
 ## License
 
 MIT
+
+</div>
