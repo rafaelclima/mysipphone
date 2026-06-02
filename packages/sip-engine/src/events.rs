@@ -19,6 +19,8 @@ pub enum CallEvent {
         remote_uri: String,
     },
 
+    PlayRingback,
+    StopRingback,
     Error {
         call_id: Option<String>,
         message: String,

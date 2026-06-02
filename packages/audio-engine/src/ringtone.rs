@@ -130,3 +130,87 @@ impl Default for RingtonePlayer {
         Self::new()
     }
 }
+
+pub struct RingbackPlayer {
+    playing: Arc<AtomicBool>,
+}
+
+impl RingbackPlayer {
+    pub fn new() -> Self {
+        Self {
+            playing: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn play(&self) -> Result<(), AudioError> {
+        if self.playing.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        self.playing.store(true, Ordering::SeqCst);
+
+        let playing = self.playing.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = Self::ringback_loop(playing) {
+                tracing::error!("Ringback playback error: {}", e);
+            }
+        });
+
+        Ok(())
+    }
+
+    pub fn stop(&self) {
+        self.playing.store(false, Ordering::SeqCst);
+    }
+
+    fn ringback_loop(playing: Arc<AtomicBool>) -> Result<(), AudioError> {
+        use alsa::pcm::{Access, Format, HwParams, PCM};
+        use alsa::ValueOr;
+
+        let pcm = PCM::new("default", alsa::Direction::Playback, false)?;
+        let hw_params = HwParams::any(&pcm)?;
+
+        hw_params.set_channels(CHANNELS)?;
+        hw_params.set_rate(SAMPLE_RATE, ValueOr::Nearest)?;
+        hw_params.set_format(Format::s16())?;
+        hw_params.set_access(Access::RWInterleaved)?;
+        pcm.hw_params(&hw_params)?;
+
+        let io = pcm.io_i16()?;
+
+        let tone_samples = (SAMPLE_RATE * TONE_DURATION_MS / 1000) as usize;
+        let silence_samples = (SAMPLE_RATE * SILENCE_DURATION_MS / 1000) as usize;
+
+        let mut tone_buf: Vec<i16> = Vec::with_capacity(tone_samples);
+        for i in 0..tone_samples {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            let s1 = (t * TONE_FREQ1 * 2.0 * std::f32::consts::PI).sin();
+            let s2 = (t * TONE_FREQ2 * 2.0 * std::f32::consts::PI).sin();
+            let sample = (s1 + s2) * 0.5;
+            tone_buf.push((sample * i16::MAX as f32) as i16);
+        }
+
+        let silence_buf = vec![0i16; silence_samples];
+
+        while playing.load(Ordering::SeqCst) {
+            if let Err(e) = io.writei(&tone_buf) {
+                tracing::warn!("Ringback write error: {}", e);
+                break;
+            }
+            if let Err(e) = io.writei(&silence_buf) {
+                tracing::warn!("Ringback silence error: {}", e);
+                break;
+            }
+        }
+
+        drop(io);
+        drop(hw_params);
+        drop(pcm);
+        Ok(())
+    }
+}
+
+impl Default for RingbackPlayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}

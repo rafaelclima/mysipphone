@@ -25,6 +25,7 @@ async fn main() {
     let (sip_cmd_tx, sip_cmd_rx) = std::sync::mpsc::channel::<sip_engine::SipCommand>();
     let (call_event_tx, mut call_event_rx) = mpsc::channel::<sip_engine::CallEvent>(256);
     let (audio_cmd_tx, audio_cmd_rx) = mpsc::channel::<audio_engine::AudioCommand>(256);
+    let audio_tx_for_events = audio_cmd_tx.clone();
     let (hotplug_tx, mut hotplug_rx) = mpsc::channel::<()>(16);
 
     let _sip_engine = SipEngine::new(sip_cmd_rx, call_event_tx.clone());
@@ -73,6 +74,21 @@ async fn main() {
                                 break;
                             };
                             tracing::info!("EVENT_RX: variant={:?}", std::mem::discriminant(&event));
+
+                            // Handle audio-only events directly (no Tauri emission)
+                            let is_audio_event = matches!(&event, sip_engine::CallEvent::PlayRingback | sip_engine::CallEvent::StopRingback);
+                            if is_audio_event {
+                                match &event {
+                                    sip_engine::CallEvent::PlayRingback => {
+                                        let _ = audio_tx_for_events.send(audio_engine::AudioCommand::PlayRingback).await;
+                                    }
+                                    sip_engine::CallEvent::StopRingback => {
+                                        let _ = audio_tx_for_events.send(audio_engine::AudioCommand::StopRingback).await;
+                                    }
+                                    _ => {}
+                                }
+                                continue;
+                            }
 
                             let (event_name, payload) = match event {
                                 sip_engine::CallEvent::EngineStarted => (
@@ -215,6 +231,9 @@ async fn main() {
                                         "message": message,
                                     }),
                                 ),
+                                sip_engine::CallEvent::PlayRingback | sip_engine::CallEvent::StopRingback => {
+                                    unreachable!()
+                                }
                             };
 
                             tracing::info!(event_name, payload = %payload, "Emitting Tauri event");

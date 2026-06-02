@@ -8,7 +8,7 @@ pub use alsa_backend::AlsaBackend;
 pub use backend::AudioBackend;
 pub use device::AudioDeviceManager;
 pub use error::AudioError;
-pub use ringtone::RingtonePlayer;
+pub use ringtone::{RingbackPlayer, RingtonePlayer};
 
 use tokio::sync::mpsc;
 
@@ -23,6 +23,8 @@ pub enum AudioCommand {
     ListDevices,
     PlayRingtone,
     StopRingtone,
+    PlayRingback,
+    StopRingback,
     StartCallStream,
     StopCallStream,
     SetMute(bool),
@@ -35,6 +37,7 @@ pub struct AudioEngine {
     backend: AlsaBackend,
     device_manager: AudioDeviceManager,
     ringtone: RingtonePlayer,
+    ringback: RingbackPlayer,
     hotplug_tx: Option<mpsc::Sender<()>>,
     device_snapshot: Vec<shared::AudioDevice>,
 }
@@ -45,6 +48,7 @@ impl AudioEngine {
             backend: AlsaBackend::new(),
             device_manager: AudioDeviceManager::new(),
             ringtone: RingtonePlayer::new(),
+            ringback: RingbackPlayer::new(),
             hotplug_tx: None,
             device_snapshot: Vec::new(),
         }
@@ -79,6 +83,10 @@ impl AudioEngine {
 
     pub fn ringtone(&self) -> &RingtonePlayer {
         &self.ringtone
+    }
+
+    pub fn ringback(&self) -> &RingbackPlayer {
+        &self.ringback
     }
 
     pub fn run(mut self, mut rx: AudioCommandReceiver) -> tokio::task::JoinHandle<()> {
@@ -148,6 +156,12 @@ impl AudioEngine {
             AudioCommand::StopRingtone => {
                 engine.ringtone.stop();
             }
+            AudioCommand::PlayRingback => {
+                engine.ringback.play()?;
+            }
+            AudioCommand::StopRingback => {
+                engine.ringback.stop();
+            }
             AudioCommand::StartCallStream => {
                 tracing::info!("Call stream started");
             }
@@ -165,6 +179,7 @@ impl AudioEngine {
             }
             AudioCommand::Shutdown => {
                 engine.ringtone.stop();
+                engine.ringback.stop();
                 tracing::info!("Audio engine shutdown complete");
             }
         }

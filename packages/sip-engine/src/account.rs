@@ -14,6 +14,7 @@ static ACC_ID_MAP: OnceLock<Mutex<HashMap<i32, String>>> = OnceLock::new();
 static ACTIVE_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static HUNG_UP_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>> = OnceLock::new();
+static OUTGOING_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 
 static SHUTDOWN_DONE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
@@ -110,6 +111,8 @@ pub unsafe extern "C" fn rust_on_call_state(
     call_id: c_int,
     state: c_int,
 ) {
+    tracing::info!("rust_on_call_state: call_id={}, state={}", call_id, state);
+    let mut was_outgoing = false;
     {
         let calls = ACTIVE_CALLS.get_or_init(|| Mutex::new(HashSet::new()));
         if let Ok(mut set) = calls.lock() {
@@ -131,6 +134,23 @@ pub unsafe extern "C" fn rust_on_call_state(
             }
         }
     }
+    {
+        let outgoing = OUTGOING_CALLS.get_or_init(|| Mutex::new(HashSet::new()));
+        if let Ok(mut set) = outgoing.lock() {
+            match state {
+                1 => {
+                    let _ = set.insert(call_id);
+                }
+                3 => {
+                    was_outgoing = set.contains(&call_id);
+                }
+                _ => {}
+            }
+            if state == 5 || state == 6 {
+                was_outgoing = set.remove(&call_id);
+            }
+        }
+    }
     let call_state = match state {
         0 => shared::CallState::Idle,
         1 => shared::CallState::Dialing,
@@ -141,6 +161,20 @@ pub unsafe extern "C" fn rust_on_call_state(
         6 => shared::CallState::Ended,
         _ => return,
     };
+    if state == 3 && was_outgoing {
+        if let Some(tx) = EVENT_TX.get() {
+            if let Ok(guard) = tx.lock() {
+                let _ = guard.try_send(CallEvent::PlayRingback);
+            }
+        }
+    }
+    if (state == 4 || state == 5 || state == 6) && was_outgoing {
+        if let Some(tx) = EVENT_TX.get() {
+            if let Ok(guard) = tx.lock() {
+                let _ = guard.try_send(CallEvent::StopRingback);
+            }
+        }
+    }
     if let Some(tx) = EVENT_TX.get() {
         if let Ok(guard) = tx.lock() {
             let _ = guard.try_send(CallEvent::CallStateChanged {
