@@ -84,8 +84,10 @@ Verified via `cargo test -p pjsip-sys`.
 - **`*8#` call pickup**: The frontend sends `sip:*8%23@dominio` (encodes `#` as `%23`).
   `mysip_make_call` decodes `%23` → `#` in the user part, then strips trailing `#`
   (Asterisk dial terminator). Physical phones send `*8` (without `#`) for general pickup.
-  Targeted pickup (`*8#123`) keeps `#` intact.
+- Targeted pickup (`*8#123`) keeps `#` intact.
 - See helpers.c:56-71 for the decode + strip logic.
+- **Frontend validation**: The SIP URI construction utility (`frontend/src/lib/sipUri.ts`)
+  must allow the `#` character in the user part before URL encoding (RFC 3261 §25.1).
 
 ## Pending / To Test
 - **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
