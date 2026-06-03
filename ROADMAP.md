@@ -118,3 +118,32 @@
 - [x] **Registration indicator**: Visual icon (green/red/yellow/grey) in the status bar next to the network icons — shows registered/failed/registering/unregistered at a glance
 - [x] **App version**: Dynamic from Tauri API (was hardcoded "v0.1.0")
 - [x] **Help section**: Modal in Settings with usage tips, call features, keyboard shortcuts, and audio device guide — translated to EN/PT-BR
+
+---
+
+## M9 — Audit Remediation Phase 1-3 (feito)
+Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap via voip-architect agent.
+
+### Phase 1 — Critical
+- [x] Fixed `useEffect` missing dependency arrays in `IncomingCall.tsx` and `IncomingPopup.tsx`
+- [x] Replaced magic numbers 0–6 with named constants (`INV_STATE_NULL` through `INV_STATE_DISCONNECTED`)
+- [x] Fixed hardcoded `account_id: 0` — added `CALL_ACC_MAP: OnceLock<Mutex<HashMap<i32, i32>>>` to track which SIP account owns each call
+- [x] Removed unnecessary `#[no_mangle]` from `RETRY_COUNT` (static, not linked from C)
+- [x] Replaced 5 `blocking_send` calls with `try_send` to prevent deadlocks in mpsc channels
+- [x] Replaced hardcoded "Chamada Recebida" with `t("incoming_call.title")` for i18n
+
+### Phase 2 — Important
+- [x] Converted `pjsua_acc_config` to opaque `_opaque` (size verified: 4960 bytes via C test program)
+- [x] Added `SipCommand::SetAudioDevice(capture, playback)` + Tauri command `set_audio_device` to switch pjsip sound devices at runtime
+- [x] Fixed race condition in incoming call popup (proper error handling on `close()`)
+- [x] Created `frontend/src/lib/sipUri.ts` with `validateSipUserPart` and `buildSipUri` (RFC 3261 §25.1)
+- [x] Added rate limiting on `RetryRegister` (500ms cooldown per account via `LAST_RETRY_TIME`)
+- [x] Error propagation for make_call, answer, transfer via `CallEvent::Error { call_id, message }`
+
+### Phase 3 — Hardening
+- [x] TLS transport: `mysip_create_tls_transport` C helper + `SipCommand::CreateTlsTransport` + Tauri command `create_tls_transport`
+- [x] Error propagation to frontend via `CallEvent::Error` for make_call, answer, transfer
+- [x] Frontend UX improvements: `CircularProgress` loading states on all action buttons, tooltips on all buttons
+- [x] i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
+- [x] Release build fix: `[profile.release] opt-level = 0` (workaround for pjsip UB crash)
+- [x] Install script fix: `cargo tauri build` instead of `cargo build --release`

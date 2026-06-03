@@ -92,6 +92,31 @@ Verified via `cargo test -p pjsip-sys`.
 - **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
 - **Device themes**: iPhone/Galaxy/Pixel switch — see M6b in ROADMAP.md
 
+## Phase 1-3 Audit Remediation (completed)
+Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap via voip-architect agent.
+
+### Phase 1 — Critical fixes
+- Fixed `useEffect` missing dependency arrays in `IncomingCall.tsx` and `IncomingPopup.tsx`
+- Replaced magic numbers 0–6 with named constants (`INV_STATE_NULL` through `INV_STATE_DISCONNECTED`) in `account.rs`
+- Fixed hardcoded `account_id: 0` — added `CALL_ACC_MAP: OnceLock<Mutex<HashMap<i32, i32>>>` to track which SIP account owns each call
+- Removed unnecessary `#[no_mangle]` from `RETRY_COUNT` (static, not linked from C)
+- Replaced 5 `blocking_send` calls with `try_send` to prevent deadlocks in mpsc channels
+- Replaced hardcoded "Chamada Recebida" with `t("incoming_call.title")` for i18n
+
+### Phase 2 — Important fixes
+- Converted `pjsua_acc_config` to opaque `_opaque` (size verified: 4960 bytes via C test program)
+- Added `SipCommand::SetAudioDevice(capture, playback)` + Tauri command `set_audio_device` to switch pjsip sound devices at runtime
+- Fixed race condition in incoming call popup (proper error handling on `close()`)
+- Created `frontend/src/lib/sipUri.ts` with `validateSipUserPart` and `buildSipUri` (RFC 3261 §25.1)
+- Added rate limiting on `RetryRegister` (500ms cooldown per account via `LAST_RETRY_TIME`)
+- Error propagation for make_call, answer, transfer via `CallEvent::Error { call_id, message }`
+
+### Phase 3 — Hardening
+- TLS transport: `mysip_create_tls_transport` C helper + `SipCommand::CreateTlsTransport` + Tauri command `create_tls_transport`
+- Error propagation to frontend via `CallEvent::Error` for make_call, answer, transfer
+- Frontend UX improvements: `CircularProgress` loading states on all action buttons, tooltips on all buttons
+- i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
+
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
@@ -291,6 +316,8 @@ cargo check                      # whole workspace
 - Mute is handled via `pjsua_conf_disconnect(0, conf_slot)` / `pjsua_conf_connect(0, conf_slot)` in `helpers.c:mysip_set_mic_mute` — physically disconnects mic (port 0) from call's conf_slot. This is guaranteed correct vs. confusing TX/RX semantics of `pjsua_conf_adjust_*_level`.
 - Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
 - **Incoming call popup**: Rust creates a secondary `WebviewWindow("incoming-popup")` at top-right (300×180, `always_on_top`, no decorations, `skip_taskbar`). Popup reads call info via `invoke("get_incoming_call_info")`. Answer/Reject emits `popup:answer`/`popup:reject` events to main window. Auto-closes on call state leaving `Ringing` or via `popup:dismiss` event. Capabilities include `"incoming-popup"` window with `allow-close` and `allow-set-focus`.
+- `CallLogEntry.end_reason` is now determined by tracking locally-initiated hangup (`HUNG_UP_CALLS` HashSet) and SIP status code (486=Busy, 480/487=NoAnswer, 603=Rejected). Falls back to `RemoteHangup`.
+- Contact form uses "number/extension" field, auto-constructs `sip:ramal@dominio` from registered account
 
 ## Architecture Review Rules
 
@@ -339,6 +366,7 @@ frontend/          React app (Vite config, eslint.config.js, i18n/)
     views/         Page components (Dialer, ActiveCall, IncomingCall, Contacts, CallHistory, Settings, AccountSetup)
     components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
     i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
+    lib/           Utilities (sipUri.ts — SIP URI validation & construction)
     theme.ts       MUI dark/light theme
     theme/
       deviceThemes.ts   Device mockup config (corner, notch, icons per theme)
