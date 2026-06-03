@@ -66,8 +66,6 @@ async fn main() {
                     let app = app.lock().await;
                     app.database.clone()
                 };
-                let mut heartbeat = tokio::time::interval(tokio::time::Duration::from_secs(5));
-                heartbeat.tick().await; // skip first instant
                 loop {
                     tokio::select! {
                         event = call_event_rx.recv() => {
@@ -260,22 +258,6 @@ async fn main() {
                                     Err(mpsc::error::TryRecvError::Disconnected) => break,
                                 }
                             }
-                        }
-                        _ = heartbeat.tick() => {
-                            // Check for hotplug changes in heartbeat too
-                            loop {
-                                match hotplug_rx.try_recv() {
-                                    Ok(()) => {
-                                        tracing::info!("Audio devices changed, notifying frontend");
-                                        let _ = handle.emit("sip:devices-changed", serde_json::json!({
-                                            "type": "DeviceListChanged",
-                                        }));
-                                    }
-                                    Err(mpsc::error::TryRecvError::Empty) => break,
-                                    Err(mpsc::error::TryRecvError::Disconnected) => break,
-                                }
-                            }
-                            tracing::debug!("event loop heartbeat alive");
                         }
                     }
                 }
