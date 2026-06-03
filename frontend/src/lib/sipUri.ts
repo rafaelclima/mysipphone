@@ -5,7 +5,7 @@
  * See RFC 3261 §25.1 for SIP URI syntax.
  */
 
-const SIP_USER_CHARS = /^[a-zA-Z0-9\-._!~*+%=]+$/;
+const SIP_USER_CHARS = /^[a-zA-Z0-9\-._!~*+#=]+$/;
 
 export interface SipUriValidation {
   valid: boolean;
