@@ -95,6 +95,12 @@ Verified via `cargo test -p pjsip-sys`.
 ## Known Issues
 1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
    eprintln output (truncated first character). Cosmetic only; device selection works correctly.
+2. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)
+   on COSMIC/Wayland. Crashes after SIP engine starts, on `pjsip-engine` thread. Reproduces even
+   with pre-change code (`git stash`). Root cause is undefined behavior (likely in pjsip FFI or
+   WebKitGTK interaction) exploited by compiler optimizations. Workaround: `[profile.release]
+   opt-level = 0`. Investigate pjsip FFI struct layout, C helper pointer semantics, or
+   WebKitGTK threading model for UB source.
 
 ## Omarchy / Arch Linux Debug (EGL crash + PipeWire Audio)
 
@@ -364,6 +370,8 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
   safely `source`d by `install.sh` without killing the parent script.
 - `install.sh` creates `~/.local/share/icons/hicolor/index.theme` if missing, then runs
   `gtk-update-icon-cache` so the desktop environment finds the app icon.
+- `install.sh` uses `cargo tauri build` (not `cargo build --release`) — Tauri CLI runs
+  `beforeBuildCommand`, embeds frontend, and creates bundles (AppImage, .deb).
 - `setup-arch.sh` is for Arch/Omarchy/Manjaro users. Installs `webkit2gtk-4.1` (runtime Tauri dep),
   downloads/installs AppImage, extracts icons, creates desktop entry.
   Sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` when on Wayland (fix white screen on Hyprland).
