@@ -307,3 +307,32 @@ pub async fn set_device_theme(
     app.device_theme = theme;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn set_audio_device(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    capture_id: i32,
+    playback_id: i32,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::SetAudioDevice(capture_id, playback_id));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn create_tls_transport(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    port: u16,
+    cert_file: String,
+    privkey_file: String,
+    ca_file: String,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::CreateTlsTransport {
+        port,
+        cert_file,
+        privkey_file,
+        ca_file,
+    });
+    Ok(())
+}

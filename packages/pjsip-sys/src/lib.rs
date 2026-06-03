@@ -58,36 +58,12 @@ pub struct pjsua_cred_info {
 }
 
 // ── pjsua_acc_config ──
+// Opaque: all field access goes through C helpers in helpers.c.
+// Size verified: sizeof(pjsua_acc_config) == 4960 on x86_64 pjsip 2.17.
 
 #[repr(C)]
 pub struct pjsua_acc_config {
-    pub priority: c_int,
-    pub acc_type: c_uint,
-    pub id: [c_char; 256usize],
-    pub reg_uri: [c_char; 256usize],
-    pub registrar: [c_char; 256usize],
-    pub cred_info: pjsua_cred_info,
-    pub credential_count: c_uint,
-    pub credentials: [pjsua_cred_info; 4usize],
-    pub proxy_cnt: c_uint,
-    pub proxy: [[c_char; 256usize]; 4usize],
-    pub reg_delay_before_refresh: c_uint,
-    pub reg_timeout: c_uint,
-    pub reg_retry_interval: c_uint,
-    pub reg_first_retry_interval: c_uint,
-    pub reg_hdr_delay: c_uint,
-    pub unreg_timeout: c_uint,
-    pub first_account: pj_bool_t,
-    pub publish_enabled: pj_bool_t,
-    pub publish_opt: pj_bool_t,
-    pub mwi_enabled: pj_bool_t,
-    pub publish_on_acc_start: pj_bool_t,
-    pub transport_id: c_int,
-    pub auth_init: pj_bool_t,
-    pub rtp_cfg: c_uint,
-    pub lock_codec: pj_bool_t,
-    pub drop_calls_on_fail: pj_bool_t,
-    pub auto_manage: c_int,
+    _opaque: [u8; 4960],
 }
 
 extern "C" {
@@ -299,6 +275,14 @@ extern "C" {
         log_cfg: *mut pjsua_logging_config,
         media_cfg: *mut pjsua_media_config,
     );
+
+    pub fn mysip_create_tls_transport(
+        port: c_int,
+        cert_file: *const c_char,
+        privkey_file: *const c_char,
+        ca_file: *const c_char,
+        out_transport_id: *mut c_int,
+    ) -> c_int;
 }
 
 #[cfg(test)]
@@ -313,5 +297,7 @@ mod tests {
             "pjsua_media_config size mismatch");
         assert_eq!(std::mem::size_of::<pjsua_logging_config>(), 2048,
             "pjsua_logging_config size mismatch");
+        assert_eq!(std::mem::size_of::<pjsua_acc_config>(), 4960,
+            "pjsua_acc_config size mismatch: update _opaque padding");
     }
 }

@@ -16,6 +16,27 @@
 - No `unwrap()` in production code (use `thiserror`)
 - No manually declaring C struct layouts in Rust for pjsip types (use C helpers instead)
 
+# Preferred Rust Patterns
+
+- thiserror for error handling
+- Result-based APIs
+- Arc only when ownership sharing is required
+- Prefer channels over shared mutable state
+- Avoid Mutex where message passing is sufficient
+
+# Preferred React Patterns
+
+- Zustand owns UI state
+- Rust owns SIP state
+- React components remain presentation focused
+- Avoid business logic in React views
+
+# Preferred Tauri Patterns
+
+- Event-driven communication
+- Strongly typed payloads
+- Avoid duplicated state ownership
+
 ## Critical FFI Rule — ALWAYS use C helpers for pjsip struct access
 The C structs `pjsua_callback`, `pjsua_config`, `pjsua_logging_config`, `pjsua_media_config`,
 and `pjsua_acc_config` are COMPLEX with many fields that are easy to mis-declare in Rust.
@@ -264,6 +285,37 @@ cargo check                      # whole workspace
 - Mute is handled via `pjsua_conf_disconnect(0, conf_slot)` / `pjsua_conf_connect(0, conf_slot)` in `helpers.c:mysip_set_mic_mute` — physically disconnects mic (port 0) from call's conf_slot. This is guaranteed correct vs. confusing TX/RX semantics of `pjsua_conf_adjust_*_level`.
 - Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
 - **Incoming call popup**: Rust creates a secondary `WebviewWindow("incoming-popup")` at top-right (300×180, `always_on_top`, no decorations, `skip_taskbar`). Popup reads call info via `invoke("get_incoming_call_info")`. Answer/Reject emits `popup:answer`/`popup:reject` events to main window. Auto-closes on call state leaving `Ringing` or via `popup:dismiss` event. Capabilities include `"incoming-popup"` window with `allow-close` and `allow-set-focus`.
+
+## Architecture Review Rules
+
+Before proposing any change:
+
+1. Understand the existing implementation.
+2. Verify the framework version.
+3. Consult Context7 documentation.
+4. Compare implementation with current best practices.
+5. Explain trade-offs.
+6. Classify risk.
+7. Generate a migration plan.
+8. Only then modify code.
+
+Never:
+
+- rewrite working SIP flows without evidence
+- replace pjsip functionality
+- change audio architecture without justification
+- introduce abstractions for theoretical reasons
+- refactor multiple subsystems simultaneously
+
+Priorities:
+
+1. Audio stability
+2. SIP reliability
+3. Correct call state transitions
+4. Resource management
+5. Maintainability
+6. Performance
+7. UI polish
 
 ## File Layout
 ```

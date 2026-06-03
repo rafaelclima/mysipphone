@@ -9,8 +9,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::mpsc;
 
+// ── pjsip invite session states (PJSIP_INV_STATE_*) ──
+const INV_STATE_NULL: c_int = 0;
+const INV_STATE_CALLING: c_int = 1;
+const INV_STATE_INCOMING: c_int = 2;
+const INV_STATE_EARLY: c_int = 3;
+const INV_STATE_CONNECTING: c_int = 4;
+const INV_STATE_CONFIRMED: c_int = 5;
+const INV_STATE_DISCONNECTED: c_int = 6;
+
 static EVENT_TX: OnceLock<Mutex<mpsc::Sender<CallEvent>>> = OnceLock::new();
 static ACC_ID_MAP: OnceLock<Mutex<HashMap<i32, String>>> = OnceLock::new();
+static CALL_ACC_MAP: OnceLock<Mutex<HashMap<i32, i32>>> = OnceLock::new();
 static ACTIVE_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static HUNG_UP_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>> = OnceLock::new();
@@ -20,9 +30,9 @@ static SHUTDOWN_DONE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 // ── C-callable callbacks (linked by name from helpers.c bridges) ──
 
-#[no_mangle]
 static RETRY_COUNT: OnceLock<Mutex<HashMap<i32, u32>>> = OnceLock::new();
 static RETRY_TX: OnceLock<Mutex<std::sync::mpsc::Sender<crate::SipCommand>>> = OnceLock::new();
+static LAST_RETRY_TIME: OnceLock<Mutex<HashMap<i32, std::time::Instant>>> = OnceLock::new();
 
 pub fn set_retry_command_tx(tx: std::sync::mpsc::Sender<crate::SipCommand>) {
     let _ = RETRY_TX.set(Mutex::new(tx));
@@ -82,6 +92,13 @@ pub unsafe extern "C" fn rust_on_incoming_call(
     call_id: c_int,
 ) {
     tracing::info!("rust_on_incoming_call: acc_id={}, call_id={}", acc_id, call_id);
+
+    if let Some(map) = CALL_ACC_MAP.get() {
+        if let Ok(mut guard) = map.lock() {
+            guard.insert(call_id, acc_id);
+        }
+    }
+
     let mut buf = [0i8; 512];
     let remote_uri = if mysip_call_get_remote_uri(call_id, buf.as_mut_ptr(), 512) == 0 {
         CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
@@ -117,14 +134,14 @@ pub unsafe extern "C" fn rust_on_call_state(
         let calls = ACTIVE_CALLS.get_or_init(|| Mutex::new(HashSet::new()));
         if let Ok(mut set) = calls.lock() {
             match state {
-                5 => {
+                INV_STATE_CONFIRMED => {
                     let was_first = set.is_empty();
                     let _ = set.insert(call_id);
                     if was_first {
                         PjsuaEngine::enable_sound();
                     }
                 }
-                6 => {
+                INV_STATE_DISCONNECTED => {
                     let _ = set.remove(&call_id);
                     if set.is_empty() {
                         PjsuaEngine::disable_sound();
@@ -138,47 +155,54 @@ pub unsafe extern "C" fn rust_on_call_state(
         let outgoing = OUTGOING_CALLS.get_or_init(|| Mutex::new(HashSet::new()));
         if let Ok(mut set) = outgoing.lock() {
             match state {
-                1 => {
+                INV_STATE_CALLING => {
                     let _ = set.insert(call_id);
                 }
-                3 => {
+                INV_STATE_EARLY => {
                     was_outgoing = set.contains(&call_id);
                 }
                 _ => {}
             }
-            if state == 5 || state == 6 {
+            if state == INV_STATE_CONFIRMED || state == INV_STATE_DISCONNECTED {
                 was_outgoing = set.remove(&call_id);
             }
         }
     }
     let call_state = match state {
-        0 => shared::CallState::Idle,
-        1 => shared::CallState::Dialing,
-        2 => shared::CallState::Ringing,
-        3 => shared::CallState::Ringing,
-        4 => shared::CallState::Connecting,
-        5 => shared::CallState::Connected,
-        6 => shared::CallState::Ended,
+        INV_STATE_NULL => shared::CallState::Idle,
+        INV_STATE_CALLING => shared::CallState::Dialing,
+        INV_STATE_INCOMING => shared::CallState::Ringing,
+        INV_STATE_EARLY => shared::CallState::Ringing,
+        INV_STATE_CONNECTING => shared::CallState::Connecting,
+        INV_STATE_CONFIRMED => shared::CallState::Connected,
+        INV_STATE_DISCONNECTED => shared::CallState::Ended,
         _ => return,
     };
-    if state == 3 && was_outgoing {
+    if state == INV_STATE_EARLY && was_outgoing {
         if let Some(tx) = EVENT_TX.get() {
             if let Ok(guard) = tx.lock() {
                 let _ = guard.try_send(CallEvent::PlayRingback);
             }
         }
     }
-    if (state == 4 || state == 5 || state == 6) && was_outgoing {
+    if (state == INV_STATE_CONNECTING || state == INV_STATE_CONFIRMED || state == INV_STATE_DISCONNECTED) && was_outgoing {
         if let Some(tx) = EVENT_TX.get() {
             if let Ok(guard) = tx.lock() {
                 let _ = guard.try_send(CallEvent::StopRingback);
             }
         }
     }
+
+    let account_id = CALL_ACC_MAP
+        .get()
+        .and_then(|m| m.lock().ok())
+        .and_then(|guard| guard.get(&call_id).copied())
+        .unwrap_or(0);
+
     if let Some(tx) = EVENT_TX.get() {
         if let Ok(guard) = tx.lock() {
             let _ = guard.try_send(CallEvent::CallStateChanged {
-                account_id: 0,
+                account_id,
                 call_id: call_id as i64,
                 state: call_state.clone(),
             });
@@ -380,7 +404,7 @@ impl PjsuaEngine {
         }
 
         Self::configure_sound_device();
-        let _ = event_tx.blocking_send(CallEvent::EngineStarted);
+        let _ = event_tx.try_send(CallEvent::EngineStarted);
 
         while !shutdown.load(Ordering::SeqCst) {
             match cmd_rx.recv_timeout(std::time::Duration::from_millis(500)) {
@@ -425,11 +449,62 @@ impl PjsuaEngine {
                     Self::reject_impl(&event_tx, &call_id);
                 }
                 Ok(crate::SipCommand::RetryRegister(acc_id)) => {
+                    // Rate limit: minimum 500ms between retries per account
+                    let now = std::time::Instant::now();
+                    let last_time = LAST_RETRY_TIME
+                        .get_or_init(|| Mutex::new(HashMap::new()))
+                        .lock()
+                        .ok()
+                        .and_then(|mut m| {
+                            let last = m.get(&acc_id).copied();
+                            m.insert(acc_id, now);
+                            last
+                        });
+                    if let Some(last) = last_time {
+                        if now.duration_since(last) < std::time::Duration::from_millis(500) {
+                            tracing::debug!("Rate limiting RetryRegister for acc_id={}", acc_id);
+                            continue;
+                        }
+                    }
                     let status = unsafe { pjsua_acc_set_registration(acc_id, PJ_TRUE) };
                     if status == PJ_SUCCESS {
                         tracing::info!("RetryRegister success for acc_id={}", acc_id);
                     } else {
                         tracing::warn!("RetryRegister failed for acc_id={}: {}", acc_id, status);
+                    }
+                }
+                Ok(crate::SipCommand::SetAudioDevice(capture_dev, playback_dev)) => {
+                    tracing::info!("Switching audio device: capture={}, playback={}", capture_dev, playback_dev);
+                    let status = unsafe { pjsua_set_snd_dev(capture_dev, playback_dev) };
+                    if status == PJ_SUCCESS {
+                        tracing::info!("Audio device switched successfully");
+                        let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
+                        if let Ok(mut guard) = store.lock() {
+                            *guard = Some(capture_dev);
+                        }
+                    } else {
+                        tracing::warn!("Failed to switch audio device: {}", status);
+                    }
+                }
+                Ok(crate::SipCommand::CreateTlsTransport { port, cert_file, privkey_file, ca_file }) => {
+                    tracing::info!("Creating TLS transport on port {}", port);
+                    let cert = CString::new(cert_file).unwrap_or_default();
+                    let key = CString::new(privkey_file).unwrap_or_default();
+                    let ca = CString::new(ca_file).unwrap_or_default();
+                    let mut tp_id: c_int = -1;
+                    let status = unsafe {
+                        mysip_create_tls_transport(
+                            port as c_int,
+                            cert.as_ptr(),
+                            key.as_ptr(),
+                            ca.as_ptr(),
+                            &raw mut tp_id,
+                        )
+                    };
+                    if status == PJ_SUCCESS {
+                        tracing::info!("TLS transport created: id={}", tp_id);
+                    } else {
+                        tracing::warn!("Failed to create TLS transport: {}", status);
                     }
                 }
                 Ok(crate::SipCommand::Shutdown) => {
@@ -545,7 +620,12 @@ impl PjsuaEngine {
         tracing::info!("Making call to: {}", uri);
         match crate::CallManager::make_call_raw(0, uri) {
             Ok(call_id) => {
-                let _ = event_tx.blocking_send(CallEvent::CallStateChanged {
+                if let Some(map) = CALL_ACC_MAP.get() {
+                    if let Ok(mut guard) = map.lock() {
+                        guard.insert(call_id, 0);
+                    }
+                }
+                let _ = event_tx.try_send(CallEvent::CallStateChanged {
                     account_id: 0,
                     call_id: call_id as i64,
                     state: shared::CallState::Dialing,
@@ -554,6 +634,10 @@ impl PjsuaEngine {
             }
             Err(e) => {
                 tracing::error!("Failed to make call: {}", e);
+                let _ = event_tx.try_send(CallEvent::Error {
+                    call_id: None,
+                    message: format!("Failed to make call: {}", e),
+                });
             }
         }
     }
@@ -588,11 +672,15 @@ impl PjsuaEngine {
         }
     }
 
-    fn answer_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str) {
+    fn answer_impl(event_tx: &mpsc::Sender<CallEvent>, call_id: &str) {
         if let Ok(cid) = call_id.parse::<i32>() {
             tracing::info!("Answering call: {}", cid);
             if let Err(e) = crate::CallManager::answer_raw(cid) {
                 tracing::error!("Failed to answer call: {}", e);
+                let _ = event_tx.try_send(CallEvent::Error {
+                    call_id: Some(call_id.to_string()),
+                    message: format!("Failed to answer call: {}", e),
+                });
             }
         }
     }
@@ -607,11 +695,15 @@ impl PjsuaEngine {
         }
     }
 
-    fn transfer_impl(_event_tx: &mpsc::Sender<CallEvent>, call_id: &str, target: &str) {
+    fn transfer_impl(event_tx: &mpsc::Sender<CallEvent>, call_id: &str, target: &str) {
         if let Ok(cid) = call_id.parse::<i32>() {
             tracing::info!("Transferring call {} to {}", cid, target);
             if let Err(e) = crate::CallManager::transfer_raw(cid, target) {
                 tracing::error!("Failed to transfer: {}", e);
+                let _ = event_tx.try_send(CallEvent::Error {
+                    call_id: Some(call_id.to_string()),
+                    message: format!("Failed to transfer: {}", e),
+                });
             }
         }
     }
@@ -652,7 +744,7 @@ impl PjsuaEngine {
         };
 
         if status != 0 {
-            let _ = event_tx.blocking_send(CallEvent::AccountStateChanged {
+            let _ = event_tx.try_send(CallEvent::AccountStateChanged {
                 account_id: config.id.clone(),
                 state: shared::AccountState::RegistrationFailed,
             });
@@ -667,7 +759,7 @@ impl PjsuaEngine {
             }
         }
 
-        let _ = event_tx.blocking_send(CallEvent::AccountStateChanged {
+        let _ = event_tx.try_send(CallEvent::AccountStateChanged {
             account_id: config.id.clone(),
             state: shared::AccountState::Registering,
         });
@@ -685,7 +777,7 @@ impl PjsuaEngine {
                 pjsua_acc_del(id);
             }
         }
-        let _ = event_tx.blocking_send(CallEvent::AccountStateChanged {
+        let _ = event_tx.try_send(CallEvent::AccountStateChanged {
             account_id,
             state: shared::AccountState::Unregistered,
         });

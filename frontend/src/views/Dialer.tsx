@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Box, Button, Typography, IconButton } from "@mui/material";
+import { Box, Button, Typography, IconButton, Tooltip, CircularProgress } from "@mui/material";
 import CallIcon from "@mui/icons-material/Call";
 import BackspaceIcon from "@mui/icons-material/Backspace";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import { useAuthStore } from "../store/useAuthStore";
 import { SnackbarAlert } from "../components/SnackbarAlert";
+import { buildSipUri } from "../lib/sipUri";
 
 const DIAL_PAD = [
   { digit: "1", letters: "" },
@@ -23,16 +24,11 @@ const DIAL_PAD = [
   { digit: "#", letters: "" },
 ];
 
-function buildSipUri(raw: string): string {
+function getDomain(): string {
   const account = useAuthStore.getState().account;
-  const domain = account
+  return account
     ? (account.sip_uri || account.registrar || "").replace(/^sip:/, "").replace(/[^@]+@/, "")
     : "";
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("sip:")) return trimmed;
-  if (trimmed.includes("@")) return `sip:${trimmed}`;
-  const encoded = trimmed.replace(/#/g, "%23");
-  return domain ? `sip:${encoded}@${domain}` : `sip:${encoded}`;
 }
 
 function Dialer() {
@@ -41,6 +37,7 @@ function Dialer() {
   const numberRef = useRef(number);
   numberRef.current = number;
   const [snack, setSnack] = useState({ open: false, msg: "" });
+  const [calling, setCalling] = useState(false);
   const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const handleDial = (digit: string) => {
@@ -52,21 +49,36 @@ function Dialer() {
   };
 
   const handleCall = async () => {
-    if (!number) return;
-    const uri = buildSipUri(number);
+    if (!number || calling) return;
+    const result = buildSipUri(number, getDomain());
+    if ("error" in result) {
+      setSnack({ open: true, msg: t("dialer.invalid_number") });
+      return;
+    }
+    setCalling(true);
     try {
-      await invoke("make_call", { uri });
+      await invoke("make_call", { uri: result.uri });
     } catch (err) {
       setSnack({ open: true, msg: String(err) });
+    } finally {
+      setCalling(false);
     }
   };
 
   const handlePickup = async () => {
-    const uri = buildSipUri("*8#");
+    if (calling) return;
+    const result = buildSipUri("*8#", getDomain());
+    if ("error" in result) {
+      setSnack({ open: true, msg: t("dialer.invalid_number") });
+      return;
+    }
+    setCalling(true);
     try {
-      await invoke("make_call", { uri });
+      await invoke("make_call", { uri: result.uri });
     } catch (err) {
       setSnack({ open: true, msg: String(err) });
+    } finally {
+      setCalling(false);
     }
   };
 
@@ -76,7 +88,12 @@ function Dialer() {
         e.preventDefault();
         const n = numberRef.current;
         if (n) {
-          invoke("make_call", { uri: buildSipUri(n) }).catch((err) => setSnack({ open: true, msg: String(err) }));
+          const result = buildSipUri(n, getDomain());
+          if ("error" in result) {
+            setSnack({ open: true, msg: t("dialer.invalid_number") });
+          } else {
+            invoke("make_call", { uri: result.uri }).catch((err) => setSnack({ open: true, msg: String(err) }));
+          }
         }
         return;
       }
@@ -99,7 +116,7 @@ function Dialer() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [t]);
 
   return (
       <Box
@@ -177,35 +194,44 @@ function Dialer() {
             mt: 2.5,
           }}
         >
-          <IconButton onClick={handleBackspace} size="medium">
-            <BackspaceIcon />
-          </IconButton>
-          <IconButton
-            onClick={handleCall}
-            sx={{
-              bgcolor: "success.main",
-              color: "white",
-              width: 54,
-              height: 54,
-              "&:hover": { bgcolor: "success.dark" },
-            }}
-          >
-            <CallIcon sx={{ fontSize: 28 }} />
-          </IconButton>
-          <IconButton
-            onClick={handlePickup}
-            size="small"
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: "warning.main",
-              color: "white",
-              "&:hover": { bgcolor: "warning.dark" },
-            }}
-            title={t("dialer.pickup")}
-          >
-            <PhoneInTalkIcon sx={{ fontSize: 20 }} />
-          </IconButton>
+          <Tooltip title={t("dialer.backspace")}>
+            <IconButton onClick={handleBackspace} size="medium" disabled={calling}>
+              <BackspaceIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={t("dialer.call")}>
+            <IconButton
+              onClick={handleCall}
+              disabled={calling || !number}
+              sx={{
+                bgcolor: calling ? "grey.500" : "success.main",
+                color: "white",
+                width: 54,
+                height: 54,
+                "&:hover": { bgcolor: calling ? "grey.500" : "success.dark" },
+                "&.Mui-disabled": { bgcolor: "grey.500", color: "white" },
+              }}
+            >
+              {calling ? <CircularProgress size={24} color="inherit" /> : <CallIcon sx={{ fontSize: 28 }} />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={t("dialer.pickup")}>
+            <IconButton
+              onClick={handlePickup}
+              size="small"
+              disabled={calling}
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: "warning.main",
+                color: "white",
+                "&:hover": { bgcolor: "warning.dark" },
+                "&.Mui-disabled": { bgcolor: "grey.500", color: "white" },
+              }}
+            >
+              <PhoneInTalkIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
 
         <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />

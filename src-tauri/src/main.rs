@@ -149,7 +149,9 @@ async fn main() {
                                         // Close previous popup if any
                                         if let Some(ref old_label) = app.current_popup_label {
                                             if let Some(old_win) = handle.get_webview_window(old_label) {
-                                                let _ = old_win.close();
+                                                if let Err(e) = old_win.close() {
+                                                    tracing::warn!("Failed to close old popup {}: {}", old_label, e);
+                                                }
                                             }
                                         }
                                         app.current_popup_label = Some(popup_label.clone());
@@ -310,6 +312,8 @@ async fn main() {
             commands::get_incoming_call_info,
             commands::set_window_corner_radius,
             commands::set_device_theme,
+            commands::set_audio_device,
+            commands::create_tls_transport,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

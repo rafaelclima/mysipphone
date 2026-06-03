@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Box, Typography, IconButton, Avatar } from "@mui/material";
 import CallIcon from "@mui/icons-material/Call";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { useTranslation } from "../i18n";
 
 interface IncomingCallInfo {
   call_id: number;
@@ -12,7 +13,45 @@ interface IncomingCallInfo {
 }
 
 function IncomingPopup() {
+  const { t } = useTranslation();
   const [info, setInfo] = useState<IncomingCallInfo | null>(null);
+
+  const closeSelf = useCallback(async () => {
+    try {
+      await getCurrentWebviewWindow().close();
+    } catch {}
+  }, []);
+
+  const focusMain = useCallback(async () => {
+    try {
+      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const main = await WebviewWindow.getByLabel("main");
+      if (main) await main.setFocus();
+    } catch {}
+  }, []);
+
+  const handleAnswer = useCallback(async () => {
+    if (!info) return;
+    try {
+      await invoke("answer", { callId: String(info.call_id) });
+      await emit("popup:answer", { callId: String(info.call_id) });
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
+    }
+    await focusMain();
+    await closeSelf();
+  }, [info, focusMain, closeSelf]);
+
+  const handleReject = useCallback(async () => {
+    if (!info) return;
+    try {
+      await invoke("reject", { callId: String(info.call_id) });
+      await emit("popup:reject", { callId: String(info.call_id) });
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
+    }
+    await closeSelf();
+  }, [info, closeSelf]);
 
   useEffect(() => {
     invoke<IncomingCallInfo | null>("get_incoming_call_info").then((r) => {
@@ -31,53 +70,22 @@ function IncomingPopup() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, []);
+  }, [closeSelf]);
 
   useEffect(() => {
+    if (!info) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && info) handleAnswer();
-      if (e.key === "Escape") handleReject();
+      if (e.key === "Enter") {
+        handleAnswer();
+        return;
+      }
+      if (e.key === "Escape") {
+        handleReject();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
-
-  const closeSelf = async () => {
-    try {
-      await getCurrentWebviewWindow().close();
-    } catch {}
-  };
-
-  const focusMain = async () => {
-    try {
-      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-      const main = await WebviewWindow.getByLabel("main");
-      if (main) await main.setFocus();
-    } catch {}
-  };
-
-  const handleAnswer = async () => {
-    if (!info) return;
-    try {
-      await invoke("answer", { callId: String(info.call_id) });
-      await emit("popup:answer", { callId: String(info.call_id) });
-    } catch {
-      // Error handled silently; SnackbarAlert in Rodada 2
-    }
-    await focusMain();
-    await closeSelf();
-  };
-
-  const handleReject = async () => {
-    if (!info) return;
-    try {
-      await invoke("reject", { callId: String(info.call_id) });
-      await emit("popup:reject", { callId: String(info.call_id) });
-    } catch {
-      // Error handled silently; SnackbarAlert in Rodada 2
-    }
-    await closeSelf();
-  };
+  }, [info, handleAnswer, handleReject]);
 
   if (!info) {
     return (
@@ -109,7 +117,7 @@ function IncomingPopup() {
         {info.remote_uri}
       </Typography>
       <Typography variant="body2" color="success.main" fontWeight={500}>
-        Chamada Recebida
+        {t("incoming_call.title")}
       </Typography>
       <Box sx={{ display: "flex", gap: 3, mt: 1.5 }}>
         <IconButton
