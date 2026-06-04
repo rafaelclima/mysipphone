@@ -543,14 +543,13 @@ impl PjsuaEngine {
             return;
         }
 
-        let mut try_order: Vec<(i32, String)> = Vec::new();
-        let mut fallback: Vec<(i32, String)> = Vec::new();
+        let mut good_devs: Vec<(i32, String)> = Vec::new();
+        let mut any_devs: Vec<(i32, String)> = Vec::new();
 
         for i in 0..count {
             let dev = unsafe { &*ptr.add(i as usize) };
             let name = unsafe { CStr::from_ptr(dev.name.as_ptr()) }
                 .to_string_lossy();
-            let lc = name.to_lowercase();
             tracing::info!(
                 "  device {}: {} (in={}, out={}, rate={})",
                 i,
@@ -560,20 +559,17 @@ impl PjsuaEngine {
                 dev.default_samples_per_sec,
             );
             let entry = (i as i32, name.to_string());
-            if lc.contains("pipewire") {
-                try_order.insert(0, entry);
-            } else if dev.output_count == 0 && dev.input_count == 0 {
-                continue;
-            } else if lc.contains("pch") || lc.contains("hda") || lc.contains("hw:") || lc.contains("plughw:") {
-                try_order.insert(0, entry);
-            } else if lc.contains("jack") {
-                fallback.push(entry);
+            if dev.output_count > 0 || dev.input_count > 0 {
+                good_devs.push(entry);
             } else {
-                try_order.push(entry);
+                any_devs.push(entry);
             }
         }
 
-        for (idx, name) in try_order.iter().chain(fallback.iter()) {
+        any_devs.reverse();
+        good_devs.append(&mut any_devs);
+
+        for (idx, name) in &good_devs {
             let status = unsafe { pjsua_set_snd_dev(*idx, *idx) };
             if status == PJ_SUCCESS {
                 tracing::info!("Sound device {}: {} opened successfully", idx, name);
