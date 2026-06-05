@@ -4,8 +4,11 @@ import { invoke } from "@tauri-apps/api/core";
 export interface AudioDevice {
   id: string;
   name: string;
-  deviceType: "Speaker" | "Microphone" | "Ringtone";
+  deviceType: "Speaker" | "Microphone" | "Ringtone" | "FullDuplex";
   isDefault: boolean;
+  input_count: number;
+  output_count: number;
+  default_samples_per_sec: number;
 }
 
 export function useAudioDevices() {

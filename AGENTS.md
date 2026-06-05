@@ -93,6 +93,18 @@ Verified via `cargo test -p pjsip-sys`.
 - **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
 - **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
 - **Device themes**: iPhone/Galaxy/Pixel switch — see M6b in ROADMAP.md
+- **Independent capture/playback audio devices** (M10, just implemented): Settings → Audio
+  now has separate Speaker and Microphone selectors that route to potentially
+  different pjsip indices via `pjsua_set_snd_dev(capture, playback)`. Needs
+  end-to-end verification: (1) select USB headset mic + laptop speaker, place
+  call, confirm direction; (2) select USB headset speaker + laptop mic, place
+  call, confirm direction; (3) restart app with non-default devices, confirm
+  re-apply fires once and audio routes correctly on first call.
+- **Ringtone audio device wiring** (deferred): the Ringtone selector stores
+  the user's choice in Zustand + localStorage but `RingtonePlayer` still
+  opens `"default"` ALSA directly. Phase 4 of the next-iteration roadmap
+  will thread the saved device through `play_ringtone` → `AudioCommand::PlayRingtone`
+  → `RingtonePlayer::play(device: &str)`.
 
 ## Phase 1-3 Audit Remediation (completed)
 Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap via voip-architect agent.
@@ -118,6 +130,55 @@ Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap v
 - Error propagation to frontend via `CallEvent::Error` for make_call, answer, transfer
 - Frontend UX improvements: `CircularProgress` loading states on all action buttons, tooltips on all buttons
 - i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
+
+## M10 — Independent Capture/Playback Audio Devices (completed)
+Settings → Audio now has separate Speaker and Microphone selectors that route
+to potentially different pjsip indices via `pjsua_set_snd_dev(capture, playback)`.
+This unblocks the "USB headset mic + laptop speaker" / "Bluetooth mic + HDMI
+speakers" use cases.
+
+### Backend (Rust)
+- `shared::AudioDevice` gained `input_count: u32`, `output_count: u32`,
+  `default_samples_per_sec: u32` (all `#[serde(default = "...")]` for
+  backward compat with old JSON consumers)
+- `shared::AudioDeviceType` gained `FullDuplex` variant (pjsip devices are
+  full-duplex, so the Speaker/Mic distinction is now derived client-side
+  from capability, not from the device_type enum)
+- `sip_engine::account::PjsipDeviceInfo` (new) holds `idx`, `name`,
+  `input_count`, `output_count`, `default_samples_per_sec` for a pjsip
+  device. `PJSIP_DEVICES: OnceLock<Mutex<Vec<PjsipDeviceInfo>>>` now stores
+  the enriched type and `get_pjsip_devices()` returns it.
+- `SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>>` is now
+  `OnceLock<Mutex<Option<(i32, i32)>>>` — stores `(capture, playback)`
+  pair. Bug fix: previously the playback index was discarded, so after a
+  call ended and a new one started, `enable_sound` re-synced both
+  directions to the capture index (losing the asymmetric routing).
+- `get_pjsip_audio_devices` Tauri command now exposes the new fields and
+  tags pjsip devices with `device_type: FullDuplex`.
+- `audio-engine::AudioDeviceManager::refresh` populates `input_count`/
+  `output_count` from ALSA `hint.direction` so the same UI filter logic
+  works for both ALSA and pjsip device lists.
+
+### Frontend (TypeScript / React)
+- `useAudioDevicesStore.AudioDevice` interface updated with the three new
+  numeric fields and `"FullDuplex"` in the device_type union.
+- `useSettingsStore` now persists `outputDeviceId` / `inputDeviceId` /
+  `ringtoneDeviceId` to `localStorage` (keys: `outputDeviceId`,
+  `inputDeviceId`, `ringtoneDeviceId`). New `clearOutputDevice` /
+  `clearInputDevice` / `clearRingtoneDevice` actions remove the localStorage
+  key and reset the state to `null`.
+- `Settings.tsx`:
+  - `speakers = pjsipDevices.filter((d) => d.output_count > 0)`
+  - `microphones = pjsipDevices.filter((d) => d.input_count > 0)`
+  - Two distinct `handleSpeakerChange` / `handleMicrophoneChange` callbacks
+    read the current value of the OTHER direction and pass the
+    `(capture, playback)` pair to `set_audio_device`. If the other
+    direction is unset, the new selection is used for both as a fallback.
+  - Re-apply on first mount: a `useRef` gate triggers a one-time
+    `set_audio_device` call after the pjsip device list loads, if both
+    saved IDs are still present and valid. Stale IDs (unplugged USB
+    headset, etc.) are cleared from localStorage with a `console.warn`
+    and the UI shows the new default.
 
 ## Known Issues
 1. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)

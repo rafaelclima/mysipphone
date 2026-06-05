@@ -296,6 +296,7 @@ async fn main() {
             commands::set_device_theme,
             commands::set_audio_device,
             commands::create_tls_transport,
+            commands::get_pjsip_audio_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

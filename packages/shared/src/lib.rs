@@ -96,6 +96,24 @@ pub struct AudioDevice {
     pub name: String,
     pub device_type: AudioDeviceType,
     pub is_default: bool,
+    #[serde(default = "default_input_count")]
+    pub input_count: u32,
+    #[serde(default = "default_output_count")]
+    pub output_count: u32,
+    #[serde(default = "default_sample_rate")]
+    pub default_samples_per_sec: u32,
+}
+
+fn default_input_count() -> u32 {
+    1
+}
+
+fn default_output_count() -> u32 {
+    1
+}
+
+fn default_sample_rate() -> u32 {
+    0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -103,6 +121,7 @@ pub enum AudioDeviceType {
     Speaker,
     Microphone,
     Ringtone,
+    FullDuplex,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

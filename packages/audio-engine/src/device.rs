@@ -56,6 +56,9 @@ impl AudioDeviceManager {
                             },
                             device_type: shared::AudioDeviceType::Speaker,
                             is_default: !has_default_playback,
+                            input_count: 0,
+                            output_count: 1,
+                            default_samples_per_sec: 0,
                         });
                         has_default_playback = true;
                     }
@@ -69,6 +72,9 @@ impl AudioDeviceManager {
                             },
                             device_type: shared::AudioDeviceType::Microphone,
                             is_default: !has_default_capture,
+                            input_count: 1,
+                            output_count: 0,
+                            default_samples_per_sec: 0,
                         });
                         has_default_capture = true;
                     }
@@ -82,6 +88,9 @@ impl AudioDeviceManager {
             name: "Default ALSA device".to_string(),
             device_type: shared::AudioDeviceType::Speaker,
             is_default: !has_default_playback,
+            input_count: 0,
+            output_count: 1,
+            default_samples_per_sec: 0,
         });
 
         devices.push(shared::AudioDevice {
@@ -89,6 +98,9 @@ impl AudioDeviceManager {
             name: "Default ALSA device".to_string(),
             device_type: shared::AudioDeviceType::Microphone,
             is_default: !has_default_capture,
+            input_count: 1,
+            output_count: 0,
+            default_samples_per_sec: 0,
         });
 
         devices.push(shared::AudioDevice {
@@ -96,6 +108,9 @@ impl AudioDeviceManager {
             name: "Default speaker (ringtone)".to_string(),
             device_type: shared::AudioDeviceType::Ringtone,
             is_default: true,
+            input_count: 0,
+            output_count: 1,
+            default_samples_per_sec: 0,
         });
 
         self.devices = devices;

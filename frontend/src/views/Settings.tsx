@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   Box,
@@ -63,6 +63,7 @@ function Settings() {
 
   const {
     devices,
+    pjsipDevices,
     loading: devicesLoading,
     fetchDevices,
   } = useAudioDevicesStore();
@@ -72,7 +73,9 @@ function Settings() {
     inputDeviceId,
     ringtoneDeviceId,
     setOutputDevice,
+    clearOutputDevice,
     setInputDevice,
+    clearInputDevice,
     setRingtoneDevice,
   } = useSettingsStore();
 
@@ -104,13 +107,87 @@ function Settings() {
 
   const status = stateLabel[authState] || stateLabel.unregistered;
 
-  const speakers = devices.filter((d) => d.device_type === "Speaker");
-  const microphones = devices.filter((d) => d.device_type === "Microphone");
+  // pjsip devices drive Speaker + Microphone selection (they route SIP audio
+  // through pjsip's conference bridge). pjsip devices are full-duplex but
+  // pjsip reports per-direction capability (input_count / output_count), so
+  // the Speaker list is filtered to devices with playback capability and the
+  // Microphone list to devices with capture capability. A user can therefore
+  // route a USB headset mic to the laptop speakers, or vice versa. The actual
+  // pjsip routing is set independently via `pjsua_set_snd_dev(capture, playback)`.
+  // Ringtone uses the ALSA list because the ringtone player bypasses pjsip and
+  // opens ALSA directly.
+  const speakers = pjsipDevices.filter((d) => d.output_count > 0);
+  const microphones = pjsipDevices.filter((d) => d.input_count > 0);
   const ringtoneDevices = devices.filter((d) => d.device_type === "Ringtone");
 
   const handleTestTone = useCallback((deviceId: string) => {
     invoke("play_test_tone", { deviceId });
   }, []);
+
+  // pjsip device ids are integer indices (as strings). The Speaker and
+  // Microphone selectors may point to different pjsip indices, so each handler
+  // reads the current Zustand value of the OTHER direction and passes the
+  // (capture, playback) pair to `pjsua_set_snd_dev`. If the other direction
+  // is unset, the new selection is used for both as a fallback so the user
+  // still hears/sends audio immediately.
+  const handleSpeakerChange = useCallback((deviceId: string) => {
+    const playbackId = parseInt(deviceId, 10);
+    if (Number.isNaN(playbackId)) return;
+    const captureFromState = useSettingsStore.getState().inputDeviceId;
+    const captureId = captureFromState ? parseInt(captureFromState, 10) : playbackId;
+    if (Number.isNaN(captureId)) return;
+    setOutputDevice(deviceId);
+    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+      console.error("Failed to switch audio device:", e);
+    });
+  }, [setOutputDevice]);
+
+  const handleMicrophoneChange = useCallback((deviceId: string) => {
+    const captureId = parseInt(deviceId, 10);
+    if (Number.isNaN(captureId)) return;
+    const playbackFromState = useSettingsStore.getState().outputDeviceId;
+    const playbackId = playbackFromState ? parseInt(playbackFromState, 10) : captureId;
+    if (Number.isNaN(playbackId)) return;
+    setInputDevice(deviceId);
+    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+      console.error("Failed to switch audio device:", e);
+    });
+  }, [setInputDevice]);
+
+  // On first mount, after the pjsip device list is available, validate the
+  // persisted Speaker/Microphone selections against the actual pjsip devices.
+  // Stale IDs (e.g., from an unplugged USB headset) are silently cleared from
+  // localStorage with a `console.warn`, and the user must re-select on next
+  // open. (Pre-population from pjsip's current routing is handled separately
+  // in a follow-up fix.)
+  const reapplyRef = useRef(false);
+  useEffect(() => {
+    if (reapplyRef.current) return;
+    if (pjsipDevices.length === 0) return;
+    reapplyRef.current = true;
+
+    const { inputDeviceId, outputDeviceId } = useSettingsStore.getState();
+
+    const validate = (id: string | null, required: "in" | "out"): boolean => {
+      if (id === null) return true;
+      const idx = parseInt(id, 10);
+      if (Number.isNaN(idx)) return false;
+      const device = pjsipDevices.find((d) => d.id === id);
+      if (!device) return false;
+      if (required === "in" && device.input_count === 0) return false;
+      if (required === "out" && device.output_count === 0) return false;
+      return true;
+    };
+
+    if (!validate(inputDeviceId, "in")) {
+      console.warn("Cleared stale inputDeviceId (no matching pjsip device):", inputDeviceId);
+      clearInputDevice();
+    }
+    if (!validate(outputDeviceId, "out")) {
+      console.warn("Cleared stale outputDeviceId (no matching pjsip device):", outputDeviceId);
+      clearOutputDevice();
+    }
+  }, [pjsipDevices, clearInputDevice, clearOutputDevice]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -193,7 +270,7 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={outputDeviceId || ""}
-                  onChange={(e) => setOutputDevice(e.target.value)}
+                  onChange={(e) => handleSpeakerChange(e.target.value)}
                 >
                   {speakers.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>
@@ -234,7 +311,7 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={inputDeviceId || ""}
-                  onChange={(e) => setInputDevice(e.target.value)}
+                  onChange={(e) => handleMicrophoneChange(e.target.value)}
                 >
                   {microphones.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>

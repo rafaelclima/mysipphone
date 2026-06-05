@@ -202,6 +202,29 @@ pub async fn get_audio_devices() -> Result<Vec<AudioDevice>, String> {
     Ok(manager.list_devices())
 }
 
+/// Returns the pjsip sound device list for the Speaker/Microphone device
+/// selectors. pjsip's device indices are what `SipCommand::SetAudioDevice`
+/// expects — not ALSA device names. Each device is reported as `FullDuplex`
+/// and exposes `input_count`/`output_count` so the frontend can filter
+/// Speaker (output>0) vs Microphone (input>0) lists and route capture/playback
+/// independently via `pjsua_set_snd_dev(capture, playback)`.
+#[tauri::command]
+pub async fn get_pjsip_audio_devices() -> Result<Vec<AudioDevice>, String> {
+    let devices = sip_engine::account::get_pjsip_devices();
+    Ok(devices
+        .into_iter()
+        .map(|d| AudioDevice {
+            id: d.idx.to_string(),
+            name: d.name,
+            device_type: shared::AudioDeviceType::FullDuplex,
+            is_default: d.idx == 0,
+            input_count: d.input_count,
+            output_count: d.output_count,
+            default_samples_per_sec: d.default_samples_per_sec,
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub async fn set_audio_output_device(
     state: State<'_, Arc<Mutex<AppState>>>,

@@ -23,8 +23,23 @@ static ACC_ID_MAP: OnceLock<Mutex<HashMap<i32, String>>> = OnceLock::new();
 static CALL_ACC_MAP: OnceLock<Mutex<HashMap<i32, i32>>> = OnceLock::new();
 static ACTIVE_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
 static HUNG_UP_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
-static SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>> = OnceLock::new();
+static SOUND_DEV_ID: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
 static OUTGOING_CALLS: OnceLock<Mutex<HashSet<i32>>> = OnceLock::new();
+static PJSIP_DEVICES: OnceLock<Mutex<Vec<PjsipDeviceInfo>>> = OnceLock::new();
+
+/// Information about a single pjsip sound device, captured at engine startup.
+/// `input_count`/`output_count` reflect the device's pjsip capability (0 means
+/// the device cannot be used for that direction). Used by the frontend to
+/// filter Speaker (output>0) vs Microphone (input>0) selectors and to drive
+/// independent capture/playback routing via `pjsua_set_snd_dev(capture, playback)`.
+#[derive(Debug, Clone)]
+pub struct PjsipDeviceInfo {
+    pub idx: i32,
+    pub name: String,
+    pub input_count: u32,
+    pub output_count: u32,
+    pub default_samples_per_sec: u32,
+}
 
 static SHUTDOWN_DONE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
@@ -280,6 +295,19 @@ pub fn is_shutdown_complete() -> bool {
         .unwrap_or(false)
 }
 
+/// Returns the list of pjsip sound devices enumerated at engine startup.
+/// Each entry exposes the pjsip device index (expected by `pjsua_set_snd_dev`
+/// and by `SipCommand::SetAudioDevice`) plus the device's input/output capability
+/// and default sample rate. Callers can use the capability fields to filter
+/// Speaker (output_count > 0) vs Microphone (input_count > 0) lists.
+pub fn get_pjsip_devices() -> Vec<PjsipDeviceInfo> {
+    PJSIP_DEVICES
+        .get()
+        .and_then(|m| m.lock().ok())
+        .map(|guard| guard.clone())
+        .unwrap_or_default()
+}
+
 impl PjsuaEngine {
     pub fn start(
         event_tx: mpsc::Sender<CallEvent>,
@@ -480,7 +508,7 @@ impl PjsuaEngine {
                         tracing::info!("Audio device switched successfully");
                         let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
                         if let Ok(mut guard) = store.lock() {
-                            *guard = Some(capture_dev);
+                            *guard = Some((capture_dev, playback_dev));
                         }
                     } else {
                         tracing::warn!("Failed to switch audio device: {}", status);
@@ -545,6 +573,7 @@ impl PjsuaEngine {
 
         let mut good_devs: Vec<(i32, String)> = Vec::new();
         let mut any_devs: Vec<(i32, String)> = Vec::new();
+        let mut all_devs: Vec<PjsipDeviceInfo> = Vec::new();
 
         for i in 0..count {
             let dev = unsafe { &*ptr.add(i as usize) };
@@ -558,12 +587,27 @@ impl PjsuaEngine {
                 dev.output_count,
                 dev.default_samples_per_sec,
             );
+            let info = PjsipDeviceInfo {
+                idx: i as i32,
+                name: name.to_string(),
+                input_count: dev.input_count,
+                output_count: dev.output_count,
+                default_samples_per_sec: dev.default_samples_per_sec,
+            };
+            all_devs.push(info);
             let entry = (i as i32, name.to_string());
             if dev.output_count > 0 || dev.input_count > 0 {
                 good_devs.push(entry);
             } else {
                 any_devs.push(entry);
             }
+        }
+
+        // Store the full pjsip device list for runtime device switching.
+        // The list is in the original pjsip enumeration order (by device index).
+        let store = PJSIP_DEVICES.get_or_init(|| Mutex::new(Vec::new()));
+        if let Ok(mut guard) = store.lock() {
+            *guard = all_devs;
         }
 
         any_devs.reverse();
@@ -575,7 +619,7 @@ impl PjsuaEngine {
                 tracing::info!("Sound device {}: {} opened successfully", idx, name);
                 let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
                 if let Ok(mut guard) = store.lock() {
-                    *guard = Some(*idx);
+                    *guard = Some((*idx, *idx));
                 }
                 unsafe { std::alloc::dealloc(ptr as *mut u8, layout); }
                 return;
@@ -589,18 +633,19 @@ impl PjsuaEngine {
     }
 
     fn enable_sound() {
-        let dev_id = SOUND_DEV_ID.get().and_then(|m| {
-            m.lock().ok().and_then(|g| {
-                let inner = &*g;
-                *inner
-            })
-        });
-        if let Some(id) = dev_id {
-            let status = unsafe { pjsua_set_snd_dev(id, id) };
+        let dev_pair = SOUND_DEV_ID
+            .get()
+            .and_then(|m| m.lock().ok())
+            .and_then(|g| *g);
+        if let Some((capture, playback)) = dev_pair {
+            let status = unsafe { pjsua_set_snd_dev(capture, playback) };
             if status == PJ_SUCCESS {
-                tracing::info!("Sound device enabled: dev_id={}", id);
+                tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
             } else {
-                tracing::warn!("Failed to enable sound device {}: {}", id, status);
+                tracing::warn!(
+                    "Failed to enable sound device (capture={}, playback={}): {}",
+                    capture, playback, status
+                );
             }
         } else {
             tracing::debug!("No sound device stored, keeping null device");
