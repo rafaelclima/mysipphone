@@ -30,6 +30,13 @@ pub enum SipCommand {
     Answer(String),
     Reject(String),
     RetryRegister(i32),
+    SetAudioDevice(i32, i32),
+    CreateTlsTransport {
+        port: u16,
+        cert_file: String,
+        privkey_file: String,
+        ca_file: String,
+    },
     Shutdown,
 }
 

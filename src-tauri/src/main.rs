@@ -48,14 +48,6 @@ async fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            #[cfg(debug_assertions)]
-            {
-                if let Some(window) = handle.get_webview_window("main") {
-                    #[allow(clippy::let_unit_value)]
-                    let _ = window.open_devtools();
-                }
-            }
-
             // Set initial window corner radius (iPhone default = 44px)
             let _ = window_utils::set_corner_radius(44.0);
 
@@ -66,8 +58,6 @@ async fn main() {
                     let app = app.lock().await;
                     app.database.clone()
                 };
-                let mut heartbeat = tokio::time::interval(tokio::time::Duration::from_secs(5));
-                heartbeat.tick().await; // skip first instant
                 loop {
                     tokio::select! {
                         event = call_event_rx.recv() => {
@@ -149,7 +139,9 @@ async fn main() {
                                         // Close previous popup if any
                                         if let Some(ref old_label) = app.current_popup_label {
                                             if let Some(old_win) = handle.get_webview_window(old_label) {
-                                                let _ = old_win.close();
+                                                if let Err(e) = old_win.close() {
+                                                    tracing::warn!("Failed to close old popup {}: {}", old_label, e);
+                                                }
                                             }
                                         }
                                         app.current_popup_label = Some(popup_label.clone());
@@ -259,22 +251,6 @@ async fn main() {
                                 }
                             }
                         }
-                        _ = heartbeat.tick() => {
-                            // Check for hotplug changes in heartbeat too
-                            loop {
-                                match hotplug_rx.try_recv() {
-                                    Ok(()) => {
-                                        tracing::info!("Audio devices changed, notifying frontend");
-                                        let _ = handle.emit("sip:devices-changed", serde_json::json!({
-                                            "type": "DeviceListChanged",
-                                        }));
-                                    }
-                                    Err(mpsc::error::TryRecvError::Empty) => break,
-                                    Err(mpsc::error::TryRecvError::Disconnected) => break,
-                                }
-                            }
-                            tracing::debug!("event loop heartbeat alive");
-                        }
                     }
                 }
             });
@@ -305,11 +281,13 @@ async fn main() {
             commands::set_audio_ringtone_device,
             commands::play_ringtone,
             commands::stop_ringtone,
-            commands::play_test_tone,
             commands::set_audio_mute,
             commands::get_incoming_call_info,
             commands::set_window_corner_radius,
             commands::set_device_theme,
+            commands::set_audio_device,
+            commands::create_tls_transport,
+            commands::get_pjsip_audio_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

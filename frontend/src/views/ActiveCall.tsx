@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Box, Typography, IconButton, Avatar, Button, TextField } from "@mui/material";
+import { Box, Typography, IconButton, Avatar, Button, TextField, Tooltip, CircularProgress } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import DialpadIcon from "@mui/icons-material/Dialpad";
@@ -47,6 +47,7 @@ function ActiveCall() {
   const [transferTarget, setTransferTarget] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const [snack, setSnack] = useState({ open: false, msg: "" });
+  const [loading, setLoading] = useState<string | null>(null);
   const closeSnack = () => setSnack({ open: false, msg: "" });
 
   const callId = call?.id;
@@ -112,24 +113,31 @@ function ActiveCall() {
   }
 
   const handleHangup = async () => {
+    setLoading("hangup");
     try {
       await invoke("hangup", { callId: call.id });
     } catch (err) {
       setSnack({ open: true, msg: String(err) });
+    } finally {
+      setLoading(null);
     }
     navigate("/");
   };
 
   const toggleMute = async () => {
+    setLoading("mute");
     try {
       await invoke("mute", { callId: call.id, muted: !call.isMuted });
       setMuted(call.id, !call.isMuted);
     } catch (err) {
       setSnack({ open: true, msg: String(err) });
+    } finally {
+      setLoading(null);
     }
   };
 
   const toggleHold = async () => {
+    setLoading("hold");
     try {
       if (call.isOnHold) {
         await invoke("unhold", { callId: call.id });
@@ -139,6 +147,8 @@ function ActiveCall() {
       setHold(call.id, !call.isOnHold);
     } catch (err) {
       setSnack({ open: true, msg: String(err) });
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -234,6 +244,7 @@ function ActiveCall() {
             label={t("call.mute")}
             active={call.isMuted}
             onClick={toggleMute}
+            loading={loading === "mute"}
           />
           <ActionButton
             icon={<DialpadIcon />}
@@ -245,6 +256,7 @@ function ActiveCall() {
             label={call.isOnHold ? t("call.resume") : t("call.hold")}
             active={call.isOnHold}
             onClick={toggleHold}
+            loading={loading === "hold"}
           />
           <ActionButton
             icon={<SwapCallsIcon />}
@@ -287,16 +299,20 @@ function ActiveCall() {
         </Box>
       )}
 
-      <IconButton
-        onClick={handleHangup}
-        sx={{
-          bgcolor: "error.main", color: "white",
-          width: 60, height: 60, mt: "auto",
-          "&:hover": { bgcolor: "error.dark" },
-        }}
-      >
-        <CallEndIcon deviceTheme={deviceTheme} sx={{ fontSize: 32 }} />
-      </IconButton>
+      <Tooltip title={t("call.hangup")}>
+        <IconButton
+          onClick={handleHangup}
+          disabled={loading === "hangup"}
+          sx={{
+            bgcolor: "error.main", color: "white",
+            width: 60, height: 60, mt: "auto",
+            "&:hover": { bgcolor: "error.dark" },
+            "&.Mui-disabled": { bgcolor: "grey.500", color: "white" },
+          }}
+        >
+          {loading === "hangup" ? <CircularProgress size={24} color="inherit" /> : <CallEndIcon deviceTheme={deviceTheme} sx={{ fontSize: 32 }} />}
+        </IconButton>
+      </Tooltip>
 
       <SnackbarAlert open={snack.open} message={snack.msg} onClose={closeSnack} />
     </Box>
@@ -304,27 +320,32 @@ function ActiveCall() {
 }
 
 function ActionButton({
-  icon, label, active, onClick,
+  icon, label, active, onClick, loading,
 }: {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
   onClick: () => void;
+  loading?: boolean;
 }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25 }}>
-      <IconButton
-        onClick={onClick}
-        sx={{
-          bgcolor: active ? "primary.main" : "action.selected",
-          color: active ? "primary.contrastText" : "text.primary",
-          width: 44,
-          height: 44,
-          "&:hover": { bgcolor: active ? "primary.dark" : "action.hover" },
-        }}
-      >
-        {icon}
-      </IconButton>
+      <Tooltip title={label}>
+        <IconButton
+          onClick={onClick}
+          disabled={loading}
+          sx={{
+            bgcolor: active ? "primary.main" : "action.selected",
+            color: active ? "primary.contrastText" : "text.primary",
+            width: 44,
+            height: 44,
+            "&:hover": { bgcolor: active ? "primary.dark" : "action.hover" },
+            "&.Mui-disabled": { bgcolor: "action.selected", color: "text.disabled" },
+          }}
+        >
+          {loading ? <CircularProgress size={20} color="inherit" /> : icon}
+        </IconButton>
+      </Tooltip>
       <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{label}</Typography>
     </Box>
   );

@@ -58,36 +58,12 @@ pub struct pjsua_cred_info {
 }
 
 // ── pjsua_acc_config ──
+// Opaque: all field access goes through C helpers in helpers.c.
+// Size verified: sizeof(pjsua_acc_config) == 4960 on x86_64 pjsip 2.17.
 
 #[repr(C)]
 pub struct pjsua_acc_config {
-    pub priority: c_int,
-    pub acc_type: c_uint,
-    pub id: [c_char; 256usize],
-    pub reg_uri: [c_char; 256usize],
-    pub registrar: [c_char; 256usize],
-    pub cred_info: pjsua_cred_info,
-    pub credential_count: c_uint,
-    pub credentials: [pjsua_cred_info; 4usize],
-    pub proxy_cnt: c_uint,
-    pub proxy: [[c_char; 256usize]; 4usize],
-    pub reg_delay_before_refresh: c_uint,
-    pub reg_timeout: c_uint,
-    pub reg_retry_interval: c_uint,
-    pub reg_first_retry_interval: c_uint,
-    pub reg_hdr_delay: c_uint,
-    pub unreg_timeout: c_uint,
-    pub first_account: pj_bool_t,
-    pub publish_enabled: pj_bool_t,
-    pub publish_opt: pj_bool_t,
-    pub mwi_enabled: pj_bool_t,
-    pub publish_on_acc_start: pj_bool_t,
-    pub transport_id: c_int,
-    pub auth_init: pj_bool_t,
-    pub rtp_cfg: c_uint,
-    pub lock_codec: pj_bool_t,
-    pub drop_calls_on_fail: pj_bool_t,
-    pub auto_manage: c_int,
+    _opaque: [u8; 4960],
 }
 
 extern "C" {
@@ -191,8 +167,17 @@ extern "C" {
 }
 
 // ── Sound device info ──
+// pjsip 2.17's PJMEDIA_AUD_DEV_INFO_NAME_LEN is 128 on Windows and 64 on
+// other platforms (see pjmedia-audiodev/config.h). The Rust binding must
+// match the platform-specific value or the struct layout is off: with the
+// wrong size, the `input_count`/`output_count`/`default_samples_per_sec`
+// fields are read from the wrong offsets and produce garbage values, which
+// breaks Speaker/Microphone filtering and the displayed device names.
 
+#[cfg(target_os = "windows")]
 pub const PJMEDIA_AUD_DEV_INFO_NAME_LEN: usize = 128;
+#[cfg(not(target_os = "windows"))]
+pub const PJMEDIA_AUD_DEV_INFO_NAME_LEN: usize = 64;
 
 #[repr(C)]
 pub struct pjmedia_snd_dev_info {
@@ -299,6 +284,14 @@ extern "C" {
         log_cfg: *mut pjsua_logging_config,
         media_cfg: *mut pjsua_media_config,
     );
+
+    pub fn mysip_create_tls_transport(
+        port: c_int,
+        cert_file: *const c_char,
+        privkey_file: *const c_char,
+        ca_file: *const c_char,
+        out_transport_id: *mut c_int,
+    ) -> c_int;
 }
 
 #[cfg(test)]
@@ -313,5 +306,20 @@ mod tests {
             "pjsua_media_config size mismatch");
         assert_eq!(std::mem::size_of::<pjsua_logging_config>(), 2048,
             "pjsua_logging_config size mismatch");
+        assert_eq!(std::mem::size_of::<pjsua_acc_config>(), 4960,
+            "pjsua_acc_config size mismatch: update _opaque padding");
+
+        // pjmedia_snd_dev_info layout must match the C struct exactly.
+        // On Linux: 64 (name) + 4 + 4 + 4 = 76 bytes.
+        // On Windows: 128 (name) + 4 + 4 + 4 = 140 bytes.
+        // Mismatched layout causes input_count/output_count to be read from
+        // the wrong offsets (garbage), which breaks Speaker/Microphone
+        // filtering and the displayed device names in the Settings UI.
+        #[cfg(target_os = "windows")]
+        const EXPECTED_SND_DEV_INFO_SIZE: usize = 140;
+        #[cfg(not(target_os = "windows"))]
+        const EXPECTED_SND_DEV_INFO_SIZE: usize = 76;
+        assert_eq!(std::mem::size_of::<pjmedia_snd_dev_info>(), EXPECTED_SND_DEV_INFO_SIZE,
+            "pjmedia_snd_dev_info size mismatch: check PJMEDIA_AUD_DEV_INFO_NAME_LEN for this platform");
     }
 }

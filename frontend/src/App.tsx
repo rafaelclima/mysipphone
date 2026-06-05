@@ -9,6 +9,8 @@ import { SnackbarAlert } from "./components/SnackbarAlert";
 import IncomingPopup from "./views/IncomingPopup";
 import { useAuthStore, AccountConfig } from "./store/useAuthStore";
 import { useCallStore, CallState } from "./store/useCallStore";
+import { useAudioDevicesStore } from "./store/useAudioDevicesStore";
+import { useSettingsStore } from "./store/useSettingsStore";
 
 const Dialer = lazy(() => import("./views/Dialer"));
 const ActiveCall = lazy(() => import("./views/ActiveCall"));
@@ -47,11 +49,70 @@ function App() {
   const setActiveCall = useCallStore((s) => s.setActiveCall);
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
   const removeCall = useCallStore((s) => s.removeCall);
+  const pjsipDevices = useAudioDevicesStore((s) => s.pjsipDevices);
+  const fetchDevices = useAudioDevicesStore((s) => s.fetchDevices);
 
   const [snack, setSnack] = useState({ open: false, msg: "" });
   const closeSnack = () => setSnack({ open: false, msg: "" });
   const unlistenersRef = useRef<(() => void)[]>([]);
   const isPopup = getCurrentWebviewWindow().label.startsWith("popup-");
+
+  // R1: On mount, fetch audio devices so `pjsipDevices` is populated.
+  // Required so the apply-persisted effect below can validate the
+  // user's saved Speaker/Microphone choice against pjsip's actual
+  // device list. Without this, pjsip keeps the first working device
+  // it auto-selected at startup (e.g., idx 0 = lavrate) and the
+  // user's persisted choice is shown in the radio but not active
+  // in pjsip. The first call would then use the wrong device.
+  useEffect(() => {
+    fetchDevices();
+  }, [fetchDevices]);
+
+  // R1: Once pjsipDevices is available, if the user has a valid
+  // persisted Speaker + Microphone choice in localStorage, apply it
+  // to pjsip via `pjsua_set_snd_dev(capture, playback)`. Runs once
+  // per app launch, gated by ref. Errors are logged and the user
+  // retains the default pjsip startup routing; they can re-open
+  // Settings to retry after a transient pjsip/ALSA failure.
+  const applyPersistedRef = useRef(false);
+  useEffect(() => {
+    if (applyPersistedRef.current) return;
+    if (pjsipDevices.length === 0) return;
+    applyPersistedRef.current = true;
+
+    const { inputDeviceId, outputDeviceId, ringtoneDeviceId } = useSettingsStore.getState();
+
+    // R1: Speaker + Microphone → pjsip routing
+    if (inputDeviceId !== null && outputDeviceId !== null) {
+      const captureId = parseInt(inputDeviceId, 10);
+      const playbackId = parseInt(outputDeviceId, 10);
+      if (!Number.isNaN(captureId) && !Number.isNaN(playbackId)) {
+        const inputDevice = pjsipDevices.find((d) => d.id === inputDeviceId);
+        const outputDevice = pjsipDevices.find((d) => d.id === outputDeviceId);
+        if (inputDevice && outputDevice && inputDevice.input_count > 0 && outputDevice.output_count > 0) {
+          invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+            console.warn("R1: failed to apply persisted audio device:", e);
+          });
+        } else {
+          // Stale IDs (unplugged device etc.) — clear so the reapply in
+          // Settings can re-seed with the current pjsip "default".
+          useSettingsStore.getState().clearInputDevice();
+          useSettingsStore.getState().clearOutputDevice();
+        }
+      }
+    }
+
+    // K6: Ringtone → AudioDeviceManager.ringtone_device (consumed by
+    // `RingtonePlayer::play(device)`). The ALSA list isn't in the React
+    // tree here, so we don't validate the id against a current list; the
+    // backend will fail to open an unplugged device and log it. We just
+    // push whatever the user last persisted.
+    if (ringtoneDeviceId !== null) {
+      invoke("set_audio_ringtone_device", { deviceId: ringtoneDeviceId }).catch((e) => {
+        console.warn("K6: failed to apply persisted ringtone device:", e);
+      });
+    }
+  }, [pjsipDevices]);
 
   useEffect(() => {
     if (isPopup) return;
@@ -172,6 +233,20 @@ function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If the user is in a call and the bottom nav takes them back to the
+  // Dialer (route "/"), redirect to the active call screen. The Dialer
+  // is unreachable while a call is in progress — the user can return to
+  // the call from any tab by clicking the Dialer button, which is also
+  // the visual indicator for the active call.
+  useEffect(() => {
+    if (isPopup) return;
+    if (location.pathname !== "/") return;
+    const { activeCallId, calls } = useCallStore.getState();
+    if (activeCallId && calls.length > 0) {
+      navigate(`/call/${activeCallId}`, { replace: true });
+    }
+  }, [isPopup, location.pathname, navigate]);
 
   if (isPopup) return <IncomingPopup />;
 

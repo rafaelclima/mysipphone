@@ -16,6 +16,27 @@
 - No `unwrap()` in production code (use `thiserror`)
 - No manually declaring C struct layouts in Rust for pjsip types (use C helpers instead)
 
+# Preferred Rust Patterns
+
+- thiserror for error handling
+- Result-based APIs
+- Arc only when ownership sharing is required
+- Prefer channels over shared mutable state
+- Avoid Mutex where message passing is sufficient
+
+# Preferred React Patterns
+
+- Zustand owns UI state
+- Rust owns SIP state
+- React components remain presentation focused
+- Avoid business logic in React views
+
+# Preferred Tauri Patterns
+
+- Event-driven communication
+- Strongly typed payloads
+- Avoid duplicated state ownership
+
 ## Critical FFI Rule — ALWAYS use C helpers for pjsip struct access
 The C structs `pjsua_callback`, `pjsua_config`, `pjsua_logging_config`, `pjsua_media_config`,
 and `pjsua_acc_config` are COMPLEX with many fields that are easy to mis-declare in Rust.
@@ -63,17 +84,109 @@ Verified via `cargo test -p pjsip-sys`.
 - **`*8#` call pickup**: The frontend sends `sip:*8%23@dominio` (encodes `#` as `%23`).
   `mysip_make_call` decodes `%23` → `#` in the user part, then strips trailing `#`
   (Asterisk dial terminator). Physical phones send `*8` (without `#`) for general pickup.
-  Targeted pickup (`*8#123`) keeps `#` intact.
+- Targeted pickup (`*8#123`) keeps `#` intact.
 - See helpers.c:56-71 for the decode + strip logic.
+- **Frontend validation**: The SIP URI construction utility (`frontend/src/lib/sipUri.ts`)
+  must allow the `#` character in the user part before URL encoding (RFC 3261 §25.1).
 
 ## Pending / To Test
 - **Multi-line (call waiting)**: Second incoming call while active → banner overlay → answer (holds first) → swap between calls → hangup one returns to the other. Need real-world SIP testing.
 - **Transfer cancel**: Pressing ✕ or Escape closes the transfer input (implemented but needs verification).
 - **Device themes**: iPhone/Galaxy/Pixel switch — see M6b in ROADMAP.md
+- **Independent capture/playback audio devices** (M10, just implemented): Settings → Audio
+  now has separate Speaker and Microphone selectors that route to potentially
+  different pjsip indices via `pjsua_set_snd_dev(capture, playback)`. Needs
+  end-to-end verification: (1) select USB headset mic + laptop speaker, place
+  call, confirm direction; (2) select USB headset speaker + laptop mic, place
+  call, confirm direction; (3) restart app with non-default devices, confirm
+  re-apply fires once and audio routes correctly on first call.
+- **Ringtone audio device wiring** (deferred): the Ringtone selector stores
+  the user's choice in Zustand + localStorage but `RingtonePlayer` still
+  opens `"default"` ALSA directly. Phase 4 of the next-iteration roadmap
+  will thread the saved device through `play_ringtone` → `AudioCommand::PlayRingtone`
+  → `RingtonePlayer::play(device: &str)`.
+
+## Phase 1-3 Audit Remediation (completed)
+Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap via voip-architect agent.
+
+### Phase 1 — Critical fixes
+- Fixed `useEffect` missing dependency arrays in `IncomingCall.tsx` and `IncomingPopup.tsx`
+- Replaced magic numbers 0–6 with named constants (`INV_STATE_NULL` through `INV_STATE_DISCONNECTED`) in `account.rs`
+- Fixed hardcoded `account_id: 0` — added `CALL_ACC_MAP: OnceLock<Mutex<HashMap<i32, i32>>>` to track which SIP account owns each call
+- Removed unnecessary `#[no_mangle]` from `RETRY_COUNT` (static, not linked from C)
+- Replaced 5 `blocking_send` calls with `try_send` to prevent deadlocks in mpsc channels
+- Replaced hardcoded "Chamada Recebida" with `t("incoming_call.title")` for i18n
+
+### Phase 2 — Important fixes
+- Converted `pjsua_acc_config` to opaque `_opaque` (size verified: 4960 bytes via C test program)
+- Added `SipCommand::SetAudioDevice(capture, playback)` + Tauri command `set_audio_device` to switch pjsip sound devices at runtime
+- Fixed race condition in incoming call popup (proper error handling on `close()`)
+- Created `frontend/src/lib/sipUri.ts` with `validateSipUserPart` and `buildSipUri` (RFC 3261 §25.1)
+- Added rate limiting on `RetryRegister` (500ms cooldown per account via `LAST_RETRY_TIME`)
+- Error propagation for make_call, answer, transfer via `CallEvent::Error { call_id, message }`
+
+### Phase 3 — Hardening
+- TLS transport: `mysip_create_tls_transport` C helper + `SipCommand::CreateTlsTransport` + Tauri command `create_tls_transport`
+- Error propagation to frontend via `CallEvent::Error` for make_call, answer, transfer
+- Frontend UX improvements: `CircularProgress` loading states on all action buttons, tooltips on all buttons
+- i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
+
+## M10 — Independent Capture/Playback Audio Devices (completed)
+Settings → Audio now has separate Speaker and Microphone selectors that route
+to potentially different pjsip indices via `pjsua_set_snd_dev(capture, playback)`.
+This unblocks the "USB headset mic + laptop speaker" / "Bluetooth mic + HDMI
+speakers" use cases.
+
+### Backend (Rust)
+- `shared::AudioDevice` gained `input_count: u32`, `output_count: u32`,
+  `default_samples_per_sec: u32` (all `#[serde(default = "...")]` for
+  backward compat with old JSON consumers)
+- `shared::AudioDeviceType` gained `FullDuplex` variant (pjsip devices are
+  full-duplex, so the Speaker/Mic distinction is now derived client-side
+  from capability, not from the device_type enum)
+- `sip_engine::account::PjsipDeviceInfo` (new) holds `idx`, `name`,
+  `input_count`, `output_count`, `default_samples_per_sec` for a pjsip
+  device. `PJSIP_DEVICES: OnceLock<Mutex<Vec<PjsipDeviceInfo>>>` now stores
+  the enriched type and `get_pjsip_devices()` returns it.
+- `SOUND_DEV_ID: OnceLock<Mutex<Option<i32>>>` is now
+  `OnceLock<Mutex<Option<(i32, i32)>>>` — stores `(capture, playback)`
+  pair. Bug fix: previously the playback index was discarded, so after a
+  call ended and a new one started, `enable_sound` re-synced both
+  directions to the capture index (losing the asymmetric routing).
+- `get_pjsip_audio_devices` Tauri command now exposes the new fields and
+  tags pjsip devices with `device_type: FullDuplex`.
+- `audio-engine::AudioDeviceManager::refresh` populates `input_count`/
+  `output_count` from ALSA `hint.direction` so the same UI filter logic
+  works for both ALSA and pjsip device lists.
+
+### Frontend (TypeScript / React)
+- `useAudioDevicesStore.AudioDevice` interface updated with the three new
+  numeric fields and `"FullDuplex"` in the device_type union.
+- `useSettingsStore` now persists `outputDeviceId` / `inputDeviceId` /
+  `ringtoneDeviceId` to `localStorage` (keys: `outputDeviceId`,
+  `inputDeviceId`, `ringtoneDeviceId`). New `clearOutputDevice` /
+  `clearInputDevice` / `clearRingtoneDevice` actions remove the localStorage
+  key and reset the state to `null`.
+- `Settings.tsx`:
+  - `speakers = pjsipDevices.filter((d) => d.output_count > 0)`
+  - `microphones = pjsipDevices.filter((d) => d.input_count > 0)`
+  - Two distinct `handleSpeakerChange` / `handleMicrophoneChange` callbacks
+    read the current value of the OTHER direction and pass the
+    `(capture, playback)` pair to `set_audio_device`. If the other
+    direction is unset, the new selection is used for both as a fallback.
+  - Re-apply on first mount: a `useRef` gate triggers a one-time
+    `set_audio_device` call after the pjsip device list loads, if both
+    saved IDs are still present and valid. Stale IDs (unplugged USB
+    headset, etc.) are cleared from localStorage with a `console.warn`
+    and the UI shows the new default.
 
 ## Known Issues
-1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
-   eprintln output (truncated first character). Cosmetic only; device selection works correctly.
+1. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)
+   on COSMIC/Wayland. Crashes after SIP engine starts, on `pjsip-engine` thread. Reproduces even
+   with pre-change code (`git stash`). Root cause is undefined behavior (likely in pjsip FFI or
+   WebKitGTK interaction) exploited by compiler optimizations. Workaround: `[profile.release]
+   opt-level = 0`. Investigate pjsip FFI struct layout, C helper pointer semantics, or
+   WebKitGTK threading model for UB source.
 
 ## Omarchy / Arch Linux Debug (EGL crash + PipeWire Audio)
 
@@ -165,6 +278,12 @@ These MUST match the Rust `_opaque` padding exactly:
 - `pjsua_media_config`   = **832** bytes (Rust: `[u8; 2048]` — oversize OK)
 - `pjsua_acc_config`     = **4960** bytes (declared with full fields in Rust — only used via C helper)
 - `pjsua_callback`       = **464** bytes (fully accessed via C helpers)
+- `pjmedia_snd_dev_info` = **76 bytes on Linux** (name[64] + 3 × u32), **140 bytes on Windows** (name[128] + 3 × u32).
+  `PJMEDIA_AUD_DEV_INFO_NAME_LEN` is platform-conditional in pjsip (128 on Windows, 64 elsewhere,
+  per `pjmedia-audiodev/config.h`); the Rust binding now uses `#[cfg(target_os = "windows")]`.
+  **Mismatched layout silently corrupts `input_count`/`output_count` (read from wrong offsets) and
+  the displayed device names — Speaker/Microphone filtering breaks entirely.** Size asserted
+  in `cargo test -p pjsip-sys`.
 
 **CRITICAL:** If `_opaque` is too small, `pjsua_config_default()` or `mysip_apply_settings()`
 writes past buffer → corrupts memory → `pjsua_init` returns `PJ_EINVAL` (70004).
@@ -264,6 +383,39 @@ cargo check                      # whole workspace
 - Mute is handled via `pjsua_conf_disconnect(0, conf_slot)` / `pjsua_conf_connect(0, conf_slot)` in `helpers.c:mysip_set_mic_mute` — physically disconnects mic (port 0) from call's conf_slot. This is guaranteed correct vs. confusing TX/RX semantics of `pjsua_conf_adjust_*_level`.
 - Database path: `~/.local/share/mysipphone/mysipphone.db` (persistent per-user, survives reboot)
 - **Incoming call popup**: Rust creates a secondary `WebviewWindow("incoming-popup")` at top-right (300×180, `always_on_top`, no decorations, `skip_taskbar`). Popup reads call info via `invoke("get_incoming_call_info")`. Answer/Reject emits `popup:answer`/`popup:reject` events to main window. Auto-closes on call state leaving `Ringing` or via `popup:dismiss` event. Capabilities include `"incoming-popup"` window with `allow-close` and `allow-set-focus`.
+- `CallLogEntry.end_reason` is now determined by tracking locally-initiated hangup (`HUNG_UP_CALLS` HashSet) and SIP status code (486=Busy, 480/487=NoAnswer, 603=Rejected). Falls back to `RemoteHangup`.
+- Contact form uses "number/extension" field, auto-constructs `sip:ramal@dominio` from registered account
+
+## Architecture Review Rules
+
+Before proposing any change:
+
+1. Understand the existing implementation.
+2. Verify the framework version.
+3. Consult Context7 documentation.
+4. Compare implementation with current best practices.
+5. Explain trade-offs.
+6. Classify risk.
+7. Generate a migration plan.
+8. Only then modify code.
+
+Never:
+
+- rewrite working SIP flows without evidence
+- replace pjsip functionality
+- change audio architecture without justification
+- introduce abstractions for theoretical reasons
+- refactor multiple subsystems simultaneously
+
+Priorities:
+
+1. Audio stability
+2. SIP reliability
+3. Correct call state transitions
+4. Resource management
+5. Maintainability
+6. Performance
+7. UI polish
 
 ## File Layout
 ```
@@ -281,6 +433,7 @@ frontend/          React app (Vite config, eslint.config.js, i18n/)
     views/         Page components (Dialer, ActiveCall, IncomingCall, Contacts, CallHistory, Settings, AccountSetup)
     components/    Shared UI (PhoneShell, StatusBar, NavigationBar, IncomingBanner)
     i18n/          Translations (en.ts, pt-BR.ts, index.tsx)
+    lib/           Utilities (sipUri.ts — SIP URI validation & construction)
     theme.ts       MUI dark/light theme
     theme/
       deviceThemes.ts   Device mockup config (corner, notch, icons per theme)
@@ -312,6 +465,8 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
   safely `source`d by `install.sh` without killing the parent script.
 - `install.sh` creates `~/.local/share/icons/hicolor/index.theme` if missing, then runs
   `gtk-update-icon-cache` so the desktop environment finds the app icon.
+- `install.sh` uses `cargo tauri build` (not `cargo build --release`) — Tauri CLI runs
+  `beforeBuildCommand`, embeds frontend, and creates bundles (AppImage, .deb).
 - `setup-arch.sh` is for Arch/Omarchy/Manjaro users. Installs `webkit2gtk-4.1` (runtime Tauri dep),
   downloads/installs AppImage, extracts icons, creates desktop entry.
   Sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` when on Wayland (fix white screen on Hyprland).

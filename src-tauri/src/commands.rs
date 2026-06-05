@@ -202,6 +202,29 @@ pub async fn get_audio_devices() -> Result<Vec<AudioDevice>, String> {
     Ok(manager.list_devices())
 }
 
+/// Returns the pjsip sound device list for the Speaker/Microphone device
+/// selectors. pjsip's device indices are what `SipCommand::SetAudioDevice`
+/// expects — not ALSA device names. Each device is reported as `FullDuplex`
+/// and exposes `input_count`/`output_count` so the frontend can filter
+/// Speaker (output>0) vs Microphone (input>0) lists and route capture/playback
+/// independently via `pjsua_set_snd_dev(capture, playback)`.
+#[tauri::command]
+pub async fn get_pjsip_audio_devices() -> Result<Vec<AudioDevice>, String> {
+    let devices = sip_engine::account::get_pjsip_devices();
+    Ok(devices
+        .into_iter()
+        .map(|d| AudioDevice {
+            id: d.idx.to_string(),
+            name: d.name,
+            device_type: shared::AudioDeviceType::FullDuplex,
+            is_default: d.idx == 0,
+            input_count: d.input_count,
+            output_count: d.output_count,
+            default_samples_per_sec: d.default_samples_per_sec,
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub async fn set_audio_output_device(
     state: State<'_, Arc<Mutex<AppState>>>,
@@ -251,16 +274,6 @@ pub async fn stop_ringtone(
 }
 
 #[tauri::command]
-pub async fn play_test_tone(
-    state: State<'_, Arc<Mutex<AppState>>>,
-    device_id: String,
-) -> Result<(), String> {
-    let app = state.lock().await;
-    app.send_audio_command(AudioCommand::PlayTestTone(device_id));
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn shutdown(
     state: State<'_, Arc<Mutex<AppState>>>,
     app_handle: tauri::AppHandle,
@@ -305,5 +318,34 @@ pub async fn set_device_theme(
 ) -> Result<(), String> {
     let mut app = state.lock().await;
     app.device_theme = theme;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_audio_device(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    capture_id: i32,
+    playback_id: i32,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::SetAudioDevice(capture_id, playback_id));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn create_tls_transport(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    port: u16,
+    cert_file: String,
+    privkey_file: String,
+    ca_file: String,
+) -> Result<(), String> {
+    let app = state.lock().await;
+    app.send_command(SipCommand::CreateTlsTransport {
+        port,
+        cert_file,
+        privkey_file,
+        ca_file,
+    });
     Ok(())
 }

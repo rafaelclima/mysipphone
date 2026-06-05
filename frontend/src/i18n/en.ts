@@ -58,6 +58,10 @@ const en: Record<string, string> = {
 
   "dialer.enter_number": "Enter number",
   "dialer.pickup": "Pickup",
+  "dialer.invalid_number": "Invalid number",
+  "dialer.call": "Make call",
+  "dialer.backspace": "Delete",
+  "call.hangup": "End call",
 
   "call.connecting": "Connecting...",
   "call.mute": "Mute",

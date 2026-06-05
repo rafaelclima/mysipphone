@@ -59,6 +59,10 @@ const pt_BR: Record<string, string> = {
 
   "dialer.enter_number": "Digite o número",
   "dialer.pickup": "Puxar Ligação",
+  "dialer.invalid_number": "Número inválido",
+  "dialer.call": "Fazer ligação",
+  "dialer.backspace": "Apagar",
+  "call.hangup": "Desligar",
 
   "call.connecting": "Conectando...",
   "call.mute": "Mudo",

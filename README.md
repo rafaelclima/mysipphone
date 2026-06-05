@@ -40,6 +40,9 @@
 | Popup de chamada recebida | ✅ |
 | Internacionalização PT-BR / EN | ✅ |
 | Instalação por usuário (sem sudo) | ✅ |
+| Transporte TLS (opcional) | ✅ |
+| Propagação de erros para o frontend | ✅ |
+| Troca de dispositivo de áudio em runtime | ✅ |
 
 ## Instalação Rápida
 
@@ -274,6 +277,9 @@ MIT
 | Incoming call popup window | ✅ |
 | PT-BR / EN internationalization | ✅ |
 | Per-user install (no sudo) | ✅ |
+| TLS transport (optional) | ✅ |
+| Error propagation to frontend | ✅ |
+| Runtime audio device switching | ✅ |
 
 ## Quick Install
 

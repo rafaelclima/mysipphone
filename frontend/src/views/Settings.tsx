@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   Box,
@@ -6,7 +6,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
   Switch,
   Typography,
   Divider,
@@ -22,7 +21,6 @@ import {
   Alert,
   Select,
   MenuItem,
-  Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -40,7 +38,6 @@ import SpeakerIcon from "@mui/icons-material/Speaker";
 import MicIcon from "@mui/icons-material/Mic";
 import RingVolumeIcon from "@mui/icons-material/RingVolume";
 import LanguageIcon from "@mui/icons-material/Language";
-import VolumeUpOutlinedIcon from "@mui/icons-material/VolumeUpOutlined";
 import PhoneAndroidIcon from "@mui/icons-material/PhoneAndroid";
 import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "react-router-dom";
@@ -63,6 +60,7 @@ function Settings() {
 
   const {
     devices,
+    pjsipDevices,
     loading: devicesLoading,
     fetchDevices,
   } = useAudioDevicesStore();
@@ -72,7 +70,9 @@ function Settings() {
     inputDeviceId,
     ringtoneDeviceId,
     setOutputDevice,
+    clearOutputDevice,
     setInputDevice,
+    clearInputDevice,
     setRingtoneDevice,
   } = useSettingsStore();
 
@@ -104,13 +104,157 @@ function Settings() {
 
   const status = stateLabel[authState] || stateLabel.unregistered;
 
-  const speakers = devices.filter((d) => d.device_type === "Speaker");
-  const microphones = devices.filter((d) => d.device_type === "Microphone");
+  // pjsip devices drive Speaker + Microphone selection (they route SIP audio
+  // through pjsip's conference bridge). pjsip devices are full-duplex but
+  // pjsip reports per-direction capability (input_count / output_count), so
+  // the Speaker list is filtered to devices with playback capability and the
+  // Microphone list to devices with capture capability. A user can therefore
+  // route a USB headset mic to the laptop speakers, or vice versa. The actual
+  // pjsip routing is set independently via `pjsua_set_snd_dev(capture, playback)`.
+  // Ringtone uses the ALSA list because the ringtone player bypasses pjsip and
+  // opens ALSA directly.
+  const speakers = pjsipDevices.filter((d) => d.output_count > 0);
+  const microphones = pjsipDevices.filter((d) => d.input_count > 0);
   const ringtoneDevices = devices.filter((d) => d.device_type === "Ringtone");
 
-  const handleTestTone = useCallback((deviceId: string) => {
-    invoke("play_test_tone", { deviceId });
-  }, []);
+
+  // pjsip device ids are integer indices (as strings). The Speaker and
+  // Microphone selectors may point to different pjsip indices, so each handler
+  // reads the current Zustand value of the OTHER direction and passes the
+  // (capture, playback) pair to `pjsua_set_snd_dev`. If the other direction
+  // is unset, the new selection is used for both as a fallback so the user
+  // still hears/sends audio immediately.
+  const handleSpeakerChange = useCallback((deviceId: string) => {
+    const playbackId = parseInt(deviceId, 10);
+    if (Number.isNaN(playbackId)) return;
+    const captureFromState = useSettingsStore.getState().inputDeviceId;
+    const captureId = captureFromState ? parseInt(captureFromState, 10) : playbackId;
+    if (Number.isNaN(captureId)) return;
+    setOutputDevice(deviceId);
+    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+      console.error("Failed to switch audio device:", e);
+    });
+  }, [setOutputDevice]);
+
+  const handleMicrophoneChange = useCallback((deviceId: string) => {
+    const captureId = parseInt(deviceId, 10);
+    if (Number.isNaN(captureId)) return;
+    const playbackFromState = useSettingsStore.getState().outputDeviceId;
+    const playbackId = playbackFromState ? parseInt(playbackFromState, 10) : captureId;
+    if (Number.isNaN(playbackId)) return;
+    setInputDevice(deviceId);
+    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+      console.error("Failed to switch audio device:", e);
+    });
+  }, [setInputDevice]);
+
+  // On first mount, after the pjsip device list is available, pre-populate
+  // the Speaker/Microphone/Ringtone selectors with the system's "default"
+  // device. This gives the user a sensible baseline on first open across
+  // machines and matches what the ALSA "default" already points to. The
+  // user can override later. If the user already made a selection
+  // (inputDeviceId / outputDeviceId / ringtoneDeviceId are non-null and
+  // valid), that selection is preserved. Stale IDs (e.g., from an unplugged
+  // USB headset) are silently cleared from localStorage.
+  const reapplyRef = useRef(false);
+  useEffect(() => {
+    if (reapplyRef.current) return;
+    if (pjsipDevices.length === 0) return;
+    reapplyRef.current = true;
+
+    const { inputDeviceId, outputDeviceId, ringtoneDeviceId } = useSettingsStore.getState();
+
+    // Validate user-persisted choices against the current pjsip device list.
+    // pjsip ids are integer indices stored as strings.
+    const validatePjsip = (id: string | null, required: "in" | "out"): { ok: boolean } => {
+      if (id === null) return { ok: true };
+      const idx = parseInt(id, 10);
+      if (Number.isNaN(idx)) return { ok: false };
+      const device = pjsipDevices.find((d) => d.id === id);
+      if (!device) return { ok: false };
+      if (required === "in" && device.input_count === 0) return { ok: false };
+      if (required === "out" && device.output_count === 0) return { ok: false };
+      return { ok: true };
+    };
+
+    const capture = validatePjsip(inputDeviceId, "in");
+    const playback = validatePjsip(outputDeviceId, "out");
+
+    if (!capture.ok) {
+      console.warn("Cleared stale inputDeviceId (no matching pjsip device):", inputDeviceId);
+      clearInputDevice();
+    }
+    if (!playback.ok) {
+      console.warn("Cleared stale outputDeviceId (no matching pjsip device):", outputDeviceId);
+      clearOutputDevice();
+    }
+
+    // Speaker + Microphone: pre-select the pjsip device whose name is
+    // "default" (pjsip exposes the ALSA "default" device with that exact
+    // name). The same device serves both directions because it's a
+    // full-duplex ALSA node. If the user's choice is already valid, it wins.
+    const defaultPjsip = pjsipDevices.find((d) => d.name.toLowerCase() === "default");
+    if (defaultPjsip) {
+      if (inputDeviceId === null && defaultPjsip.input_count > 0) {
+        setInputDevice(defaultPjsip.id);
+      }
+      if (outputDeviceId === null && defaultPjsip.output_count > 0) {
+        setOutputDevice(defaultPjsip.id);
+      }
+    }
+
+    // R1: After the reapply (which may have just pre-selected "default"
+    // for a first-time user), apply the now-resolved Speaker + Microphone
+    // pair to pjsip. Without this, pjsip would keep its startup default
+    // (idx 0) until the next app launch — even though localStorage now
+    // has the user's choice. App.tsx already applies on cold start; this
+    // covers the in-session case where the user opens Settings for the
+    // first time and the reapply populates localStorage.
+    const finalInputId = useSettingsStore.getState().inputDeviceId;
+    const finalOutputId = useSettingsStore.getState().outputDeviceId;
+    if (finalInputId !== null && finalOutputId !== null) {
+      const capId = parseInt(finalInputId, 10);
+      const playId = parseInt(finalOutputId, 10);
+      if (!Number.isNaN(capId) && !Number.isNaN(playId)) {
+        const cap = pjsipDevices.find((d) => d.id === finalInputId);
+        const play = pjsipDevices.find((d) => d.id === finalOutputId);
+        if (cap && play && cap.input_count > 0 && play.output_count > 0) {
+          invoke("set_audio_device", { captureId: capId, playbackId: playId }).catch((e) => {
+            console.warn("R1: failed to apply audio device from Settings reapply:", e);
+          });
+        }
+      }
+    }
+
+    // Ringtone: pre-select the ALSA "default" device. The ringtone player
+    // opens ALSA directly (bypasses pjsip), so we use the ALSA list and
+    // match by id ("default") or by name containing "default".
+    if (ringtoneDeviceId === null) {
+      const defaultRingtone = ringtoneDevices.find(
+        (d) => d.id === "default" || d.name.toLowerCase().includes("default"),
+      );
+      if (defaultRingtone) {
+        setRingtoneDevice(defaultRingtone.id);
+      }
+    }
+
+    // K6: After the reapply pre-selects the ringtone device, push the
+    // resolved value to the backend via `set_audio_ringtone_device`. Without
+    // this, the ringtone player would fall back to the hardcoded "default"
+    // ALSA string (see `RingtonePlayer::play` in `packages/audio-engine/src/ringtone.rs`)
+    // until the next app launch — even though localStorage has the choice.
+    // App.tsx applies the persisted ringtone on cold start; this covers
+    // the in-session first-time-user case.
+    const finalRingtoneId = useSettingsStore.getState().ringtoneDeviceId;
+    if (finalRingtoneId !== null) {
+      const match = ringtoneDevices.find((d) => d.id === finalRingtoneId);
+      if (match) {
+        invoke("set_audio_ringtone_device", { deviceId: finalRingtoneId }).catch((e) => {
+          console.warn("K6: failed to apply ringtone device from Settings reapply:", e);
+        });
+      }
+    }
+  }, [pjsipDevices, ringtoneDevices, clearInputDevice, clearOutputDevice, setInputDevice, setOutputDevice, setRingtoneDevice]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -193,7 +337,7 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={outputDeviceId || ""}
-                  onChange={(e) => setOutputDevice(e.target.value)}
+                  onChange={(e) => handleSpeakerChange(e.target.value)}
                 >
                   {speakers.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>
@@ -212,15 +356,6 @@ function Settings() {
                         }
                         sx={{ "& .MuiTypography-root": { fontSize: "0.78rem" }, my: -0.25, flex: 1, minWidth: 0 }}
                       />
-                      <Tooltip title={t("settings.test_tone")}>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleTestTone(d.id)}
-                          sx={{ mr: 0.5, "&:hover": { color: "primary.main" } }}
-                        >
-                          <VolumeUpOutlinedIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
                     </Box>
                   ))}
                 </RadioGroup>
@@ -234,7 +369,7 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={inputDeviceId || ""}
-                  onChange={(e) => setInputDevice(e.target.value)}
+                  onChange={(e) => handleMicrophoneChange(e.target.value)}
                 >
                   {microphones.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>
@@ -266,7 +401,13 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={ringtoneDeviceId || ""}
-                  onChange={(e) => setRingtoneDevice(e.target.value)}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setRingtoneDevice(id);
+                    invoke("set_audio_ringtone_device", { deviceId: id }).catch((err) => {
+                      console.warn("K6: failed to set ringtone device:", err);
+                    });
+                  }}
                 >
                   {ringtoneDevices.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>

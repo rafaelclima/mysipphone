@@ -1,4 +1,5 @@
 #include <pjsua-lib/pjsua.h>
+#include <pjsip/sip_transport_tls.h>
 #include <string.h>
 
 int mysip_account_add(const char *id,
@@ -333,4 +334,42 @@ int mysip_call_xfer_replaces(int call_id,
         (pjsua_call_id)dest_call_id,
         options, NULL);
     return (status == PJ_SUCCESS) ? 0 : (int)status;
+}
+
+int mysip_create_tls_transport(int port,
+                               const char *cert_file,
+                               const char *privkey_file,
+                               const char *ca_file,
+                               int *out_transport_id)
+{
+    pjsua_transport_config cfg;
+    pjsua_transport_config_default(&cfg);
+    cfg.port = (unsigned)port;
+
+    pjsip_tls_setting_default(&cfg.tls_setting);
+
+    if (cert_file && cert_file[0]) {
+        cfg.tls_setting.cert_file = pj_str((char *)cert_file);
+    }
+    if (privkey_file && privkey_file[0]) {
+        cfg.tls_setting.privkey_file = pj_str((char *)privkey_file);
+    }
+    if (ca_file && ca_file[0]) {
+        cfg.tls_setting.ca_list_file = pj_str((char *)ca_file);
+    }
+
+    cfg.tls_setting.verify_server = PJ_FALSE;
+    cfg.tls_setting.verify_client = PJ_FALSE;
+
+    pjsua_transport_id tp_id = -1;
+    pj_status_t status = pjsua_transport_create(
+        PJSIP_TRANSPORT_TLS, &cfg, &tp_id);
+
+    if (status != PJ_SUCCESS) {
+        *out_transport_id = -1;
+        return (int)status;
+    }
+
+    *out_transport_id = (int)tp_id;
+    return 0;
 }

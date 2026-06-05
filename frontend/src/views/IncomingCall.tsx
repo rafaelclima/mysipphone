@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { Box, Typography, IconButton, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,7 +15,32 @@ function IncomingCall() {
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
   const deviceTheme = useSettingsStore((s) => s.deviceTheme);
 
+  const handleAnswer = useCallback(async () => {
+    if (!incomingCall) return;
+    try {
+      await invoke("answer", { callId: incomingCall.id });
+      emit("popup:dismiss", {}).catch(() => {});
+      setIncomingCall(null);
+      navigate(`/call/${incomingCall.id}`);
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
+    }
+  }, [incomingCall, setIncomingCall, navigate]);
+
+  const handleReject = useCallback(async () => {
+    if (!incomingCall) return;
+    try {
+      await invoke("reject", { callId: incomingCall.id });
+      emit("popup:dismiss", {}).catch(() => {});
+    } catch {
+      // Error handled silently; SnackbarAlert in Rodada 2
+    }
+    setIncomingCall(null);
+    navigate("/");
+  }, [incomingCall, setIncomingCall, navigate]);
+
   useEffect(() => {
+    if (!incomingCall) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         handleAnswer();
@@ -27,33 +52,11 @@ function IncomingCall() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [incomingCall, handleAnswer, handleReject]);
 
   if (!incomingCall) {
     return null;
   }
-
-  const handleAnswer = async () => {
-    try {
-      await invoke("answer", { callId: incomingCall.id });
-      emit("popup:dismiss", {}).catch(() => {});
-      setIncomingCall(null);
-      navigate(`/call/${incomingCall.id}`);
-    } catch {
-      // Error handled silently; SnackbarAlert in Rodada 2
-    }
-  };
-
-  const handleReject = async () => {
-    try {
-      await invoke("reject", { callId: incomingCall.id });
-      emit("popup:dismiss", {}).catch(() => {});
-    } catch {
-      // Error handled silently; SnackbarAlert in Rodada 2
-    }
-    setIncomingCall(null);
-    navigate("/");
-  };
 
   const avatarLetter = (incomingCall.remoteName || incomingCall.remoteUri).charAt(0).toUpperCase();
 

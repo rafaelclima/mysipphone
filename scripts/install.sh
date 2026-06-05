@@ -34,7 +34,7 @@ if [ -f "${PROJECT_DIR}/frontend/package.json" ]; then
 fi
 
 source "$HOME/.cargo/env"
-cargo build --release --manifest-path "${PROJECT_DIR}/Cargo.toml"
+(cd "${PROJECT_DIR}" && cargo tauri build)
 
 # ── 6. Install binary ──
 echo "[3/5] Installing binary..."
