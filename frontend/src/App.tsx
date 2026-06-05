@@ -80,22 +80,38 @@ function App() {
     if (pjsipDevices.length === 0) return;
     applyPersistedRef.current = true;
 
-    const { inputDeviceId, outputDeviceId } = useSettingsStore.getState();
-    if (inputDeviceId === null || outputDeviceId === null) return;
+    const { inputDeviceId, outputDeviceId, ringtoneDeviceId } = useSettingsStore.getState();
 
-    const captureId = parseInt(inputDeviceId, 10);
-    const playbackId = parseInt(outputDeviceId, 10);
-    if (Number.isNaN(captureId) || Number.isNaN(playbackId)) return;
+    // R1: Speaker + Microphone → pjsip routing
+    if (inputDeviceId !== null && outputDeviceId !== null) {
+      const captureId = parseInt(inputDeviceId, 10);
+      const playbackId = parseInt(outputDeviceId, 10);
+      if (!Number.isNaN(captureId) && !Number.isNaN(playbackId)) {
+        const inputDevice = pjsipDevices.find((d) => d.id === inputDeviceId);
+        const outputDevice = pjsipDevices.find((d) => d.id === outputDeviceId);
+        if (inputDevice && outputDevice && inputDevice.input_count > 0 && outputDevice.output_count > 0) {
+          invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+            console.warn("R1: failed to apply persisted audio device:", e);
+          });
+        } else {
+          // Stale IDs (unplugged device etc.) — clear so the reapply in
+          // Settings can re-seed with the current pjsip "default".
+          useSettingsStore.getState().clearInputDevice();
+          useSettingsStore.getState().clearOutputDevice();
+        }
+      }
+    }
 
-    const inputDevice = pjsipDevices.find((d) => d.id === inputDeviceId);
-    const outputDevice = pjsipDevices.find((d) => d.id === outputDeviceId);
-    if (!inputDevice || !outputDevice) return;
-    if (inputDevice.input_count === 0) return;
-    if (outputDevice.output_count === 0) return;
-
-    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
-      console.warn("R1: failed to apply persisted audio device:", e);
-    });
+    // K6: Ringtone → AudioDeviceManager.ringtone_device (consumed by
+    // `RingtonePlayer::play(device)`). The ALSA list isn't in the React
+    // tree here, so we don't validate the id against a current list; the
+    // backend will fail to open an unplugged device and log it. We just
+    // push whatever the user last persisted.
+    if (ringtoneDeviceId !== null) {
+      invoke("set_audio_ringtone_device", { deviceId: ringtoneDeviceId }).catch((e) => {
+        console.warn("K6: failed to apply persisted ringtone device:", e);
+      });
+    }
   }, [pjsipDevices]);
 
   useEffect(() => {

@@ -151,13 +151,15 @@ impl AudioEngine {
                 tracing::info!("Devices refreshed: {:?}", engine.device_manager.list_devices());
             }
             AudioCommand::PlayRingtone => {
-                engine.ringtone.play()?;
+                let device = engine.device_manager.ringtone_device().to_string();
+                engine.ringtone.play(&device)?;
             }
             AudioCommand::StopRingtone => {
                 engine.ringtone.stop();
             }
             AudioCommand::PlayRingback => {
-                engine.ringback.play()?;
+                let device = engine.device_manager.ringtone_device().to_string();
+                engine.ringback.play(&device)?;
             }
             AudioCommand::StopRingback => {
                 engine.ringback.stop();

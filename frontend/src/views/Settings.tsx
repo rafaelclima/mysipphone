@@ -243,6 +243,23 @@ function Settings() {
         setRingtoneDevice(defaultRingtone.id);
       }
     }
+
+    // K6: After the reapply pre-selects the ringtone device, push the
+    // resolved value to the backend via `set_audio_ringtone_device`. Without
+    // this, the ringtone player would fall back to the hardcoded "default"
+    // ALSA string (see `RingtonePlayer::play` in `packages/audio-engine/src/ringtone.rs`)
+    // until the next app launch — even though localStorage has the choice.
+    // App.tsx applies the persisted ringtone on cold start; this covers
+    // the in-session first-time-user case.
+    const finalRingtoneId = useSettingsStore.getState().ringtoneDeviceId;
+    if (finalRingtoneId !== null) {
+      const match = ringtoneDevices.find((d) => d.id === finalRingtoneId);
+      if (match) {
+        invoke("set_audio_ringtone_device", { deviceId: finalRingtoneId }).catch((e) => {
+          console.warn("K6: failed to apply ringtone device from Settings reapply:", e);
+        });
+      }
+    }
   }, [pjsipDevices, ringtoneDevices, clearInputDevice, clearOutputDevice, setInputDevice, setOutputDevice, setRingtoneDevice]);
 
   return (
@@ -399,7 +416,13 @@ function Settings() {
                 </FormLabel>
                 <RadioGroup
                   value={ringtoneDeviceId || ""}
-                  onChange={(e) => setRingtoneDevice(e.target.value)}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setRingtoneDevice(id);
+                    invoke("set_audio_ringtone_device", { deviceId: id }).catch((err) => {
+                      console.warn("K6: failed to set ringtone device:", err);
+                    });
+                  }}
                 >
                   {ringtoneDevices.map((d) => (
                     <Box key={d.id} sx={{ display: "flex", alignItems: "center" }}>

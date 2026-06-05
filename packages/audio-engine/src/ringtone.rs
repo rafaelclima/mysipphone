@@ -21,15 +21,16 @@ impl RingtonePlayer {
         }
     }
 
-    pub fn play(&self) -> Result<(), AudioError> {
+    pub fn play(&self, device: &str) -> Result<(), AudioError> {
         if self.playing.load(Ordering::SeqCst) {
             return Ok(());
         }
         self.playing.store(true, Ordering::SeqCst);
 
         let playing = self.playing.clone();
+        let device = device.to_string();
         std::thread::spawn(move || {
-            if let Err(e) = Self::ringtone_loop(playing) {
+            if let Err(e) = Self::ringtone_loop(playing, &device) {
                 tracing::error!("Ringtone playback error: {}", e);
             }
         });
@@ -78,11 +79,11 @@ impl RingtonePlayer {
         Ok(())
     }
 
-    fn ringtone_loop(playing: Arc<AtomicBool>) -> Result<(), AudioError> {
+    fn ringtone_loop(playing: Arc<AtomicBool>, device: &str) -> Result<(), AudioError> {
         use alsa::pcm::{Access, Format, HwParams, PCM};
         use alsa::ValueOr;
 
-        let pcm = PCM::new("default", alsa::Direction::Playback, false)?;
+        let pcm = PCM::new(device, alsa::Direction::Playback, false)?;
         let hw_params = HwParams::any(&pcm)?;
 
         hw_params.set_channels(CHANNELS)?;
@@ -142,15 +143,16 @@ impl RingbackPlayer {
         }
     }
 
-    pub fn play(&self) -> Result<(), AudioError> {
+    pub fn play(&self, device: &str) -> Result<(), AudioError> {
         if self.playing.load(Ordering::SeqCst) {
             return Ok(());
         }
         self.playing.store(true, Ordering::SeqCst);
 
         let playing = self.playing.clone();
+        let device = device.to_string();
         std::thread::spawn(move || {
-            if let Err(e) = Self::ringback_loop(playing) {
+            if let Err(e) = Self::ringback_loop(playing, &device) {
                 tracing::error!("Ringback playback error: {}", e);
             }
         });
@@ -162,11 +164,11 @@ impl RingbackPlayer {
         self.playing.store(false, Ordering::SeqCst);
     }
 
-    fn ringback_loop(playing: Arc<AtomicBool>) -> Result<(), AudioError> {
+    fn ringback_loop(playing: Arc<AtomicBool>, device: &str) -> Result<(), AudioError> {
         use alsa::pcm::{Access, Format, HwParams, PCM};
         use alsa::ValueOr;
 
-        let pcm = PCM::new("default", alsa::Direction::Playback, false)?;
+        let pcm = PCM::new(device, alsa::Direction::Playback, false)?;
         let hw_params = HwParams::any(&pcm)?;
 
         hw_params.set_channels(CHANNELS)?;
