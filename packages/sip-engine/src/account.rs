@@ -308,6 +308,24 @@ pub fn get_pjsip_devices() -> Vec<PjsipDeviceInfo> {
         .unwrap_or_default()
 }
 
+/// Returns the indices of the sound devices currently in use by pjsip
+/// (`capture_dev`, `playback_dev`). Used by the frontend to pre-populate the
+/// Speaker/Microphone selectors with the device that is actually active
+/// (otherwise the user would see a list of devices with none selected, even
+/// though audio is already routed through a specific pjsip index).
+///
+/// Returns `None` if pjsip hasn't been initialized yet or no sound device is
+/// currently open.
+pub fn get_pjsip_current_snd_dev() -> Option<(i32, i32)> {
+    let mut capture: c_int = -1;
+    let mut playback: c_int = -1;
+    let status = unsafe { pjsua_get_snd_dev(&raw mut capture, &raw mut playback) };
+    if status != PJ_SUCCESS || capture < 0 || playback < 0 {
+        return None;
+    }
+    Some((capture, playback))
+}
+
 impl PjsuaEngine {
     pub fn start(
         event_tx: mpsc::Sender<CallEvent>,

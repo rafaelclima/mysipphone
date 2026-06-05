@@ -64,6 +64,8 @@ function Settings() {
   const {
     devices,
     pjsipDevices,
+    currentCaptureIdx,
+    currentPlaybackIdx,
     loading: devicesLoading,
     fetchDevices,
   } = useAudioDevicesStore();
@@ -154,40 +156,66 @@ function Settings() {
     });
   }, [setInputDevice]);
 
-  // On first mount, after the pjsip device list is available, validate the
-  // persisted Speaker/Microphone selections against the actual pjsip devices.
-  // Stale IDs (e.g., from an unplugged USB headset) are silently cleared from
-  // localStorage with a `console.warn`, and the user must re-select on next
-  // open. (Pre-population from pjsip's current routing is handled separately
-  // in a follow-up fix.)
+  // On first mount, after the pjsip device list and the current pjsip
+  // (capture, playback) indices are available, pre-populate the Speaker/
+  // Microphone selectors with the device that is actually in use. Without
+  // this, the user would open Settings and see a list of devices with none
+  // selected, even though audio is already routed through a specific pjsip
+  // index. If the user already made a selection (inputDeviceId /
+  // outputDeviceId are non-null and valid), that selection is preserved.
+  // Stale IDs (e.g., from an unplugged USB headset) are silently cleared
+  // from localStorage.
   const reapplyRef = useRef(false);
   useEffect(() => {
     if (reapplyRef.current) return;
     if (pjsipDevices.length === 0) return;
+    if (currentCaptureIdx === null || currentPlaybackIdx === null) return;
     reapplyRef.current = true;
 
     const { inputDeviceId, outputDeviceId } = useSettingsStore.getState();
 
-    const validate = (id: string | null, required: "in" | "out"): boolean => {
-      if (id === null) return true;
+    const validate = (id: string | null, required: "in" | "out"): { ok: boolean; idx: number | null } => {
+      if (id === null) return { ok: true, idx: null };
       const idx = parseInt(id, 10);
-      if (Number.isNaN(idx)) return false;
+      if (Number.isNaN(idx)) return { ok: false, idx: null };
       const device = pjsipDevices.find((d) => d.id === id);
-      if (!device) return false;
-      if (required === "in" && device.input_count === 0) return false;
-      if (required === "out" && device.output_count === 0) return false;
-      return true;
+      if (!device) return { ok: false, idx: null };
+      if (required === "in" && device.input_count === 0) return { ok: false, idx };
+      if (required === "out" && device.output_count === 0) return { ok: false, idx };
+      return { ok: true, idx };
     };
 
-    if (!validate(inputDeviceId, "in")) {
+    const capture = validate(inputDeviceId, "in");
+    const playback = validate(outputDeviceId, "out");
+
+    if (!capture.ok) {
       console.warn("Cleared stale inputDeviceId (no matching pjsip device):", inputDeviceId);
       clearInputDevice();
     }
-    if (!validate(outputDeviceId, "out")) {
+    if (!playback.ok) {
       console.warn("Cleared stale outputDeviceId (no matching pjsip device):", outputDeviceId);
       clearOutputDevice();
     }
-  }, [pjsipDevices, clearInputDevice, clearOutputDevice]);
+
+    // Resolve final values: user's persisted choice wins; otherwise fall back
+    // to whatever pjsip is currently routing audio through, so the radios are
+    // checked on first open and the user can see "what is actually being used".
+    const finalCaptureId = capture.idx ?? currentCaptureIdx;
+    const finalPlaybackId = playback.idx ?? currentPlaybackIdx;
+
+    if (inputDeviceId === null && finalCaptureId !== null) {
+      const id = String(finalCaptureId);
+      if (pjsipDevices.some((d) => d.id === id && d.input_count > 0)) {
+        setInputDevice(id);
+      }
+    }
+    if (outputDeviceId === null && finalPlaybackId !== null) {
+      const id = String(finalPlaybackId);
+      if (pjsipDevices.some((d) => d.id === id && d.output_count > 0)) {
+        setOutputDevice(id);
+      }
+    }
+  }, [pjsipDevices, currentCaptureIdx, currentPlaybackIdx, clearInputDevice, clearOutputDevice, setInputDevice, setOutputDevice]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>

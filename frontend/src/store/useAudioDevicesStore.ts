@@ -14,6 +14,8 @@ export interface AudioDevice {
 interface AudioDevicesStore {
   devices: AudioDevice[];
   pjsipDevices: AudioDevice[];
+  currentCaptureIdx: number | null;
+  currentPlaybackIdx: number | null;
   loading: boolean;
   error: string | null;
   fetchDevices: () => Promise<void>;
@@ -22,17 +24,26 @@ interface AudioDevicesStore {
 export const useAudioDevicesStore = create<AudioDevicesStore>((set) => ({
   devices: [],
   pjsipDevices: [],
+  currentCaptureIdx: null,
+  currentPlaybackIdx: null,
   loading: false,
   error: null,
 
   fetchDevices: async () => {
     set({ loading: true, error: null });
     try {
-      const [alsaDevices, pjsipDevices] = await Promise.all([
+      const [alsaDevices, pjsipDevices, currentDevs] = await Promise.all([
         invoke<AudioDevice[]>("get_audio_devices"),
         invoke<AudioDevice[]>("get_pjsip_audio_devices"),
+        invoke<[number, number] | null>("get_current_pjsip_audio_devices"),
       ]);
-      set({ devices: alsaDevices, pjsipDevices, loading: false });
+      set({
+        devices: alsaDevices,
+        pjsipDevices,
+        currentCaptureIdx: currentDevs ? currentDevs[0] : null,
+        currentPlaybackIdx: currentDevs ? currentDevs[1] : null,
+        loading: false,
+      });
     } catch (e) {
       set({ error: String(e), loading: false });
     }

@@ -225,6 +225,17 @@ pub async fn get_pjsip_audio_devices() -> Result<Vec<AudioDevice>, String> {
         .collect())
 }
 
+/// Returns the (capture, playback) pjsip device indices currently in use, or
+/// `None` if pjsip has not yet opened a sound device. The frontend uses this
+/// on first load to pre-populate the Speaker/Microphone selectors with the
+/// device that is actually active — otherwise the user sees a list of devices
+/// with none selected, even though audio is already routed through a specific
+/// pjsip index.
+#[tauri::command]
+pub async fn get_current_pjsip_audio_devices() -> Result<Option<(i32, i32)>, String> {
+    Ok(sip_engine::account::get_pjsip_current_snd_dev())
+}
+
 #[tauri::command]
 pub async fn set_audio_output_device(
     state: State<'_, Arc<Mutex<AppState>>>,
