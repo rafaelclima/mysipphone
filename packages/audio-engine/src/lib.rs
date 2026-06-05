@@ -28,7 +28,6 @@ pub enum AudioCommand {
     StartCallStream,
     StopCallStream,
     SetMute(bool),
-    PlayTestTone(String),
     SetHotplugChannel(mpsc::Sender<()>),
     Shutdown,
 }
@@ -172,9 +171,6 @@ impl AudioEngine {
             }
             AudioCommand::SetMute(muted) => {
                 engine.backend.set_mute(muted);
-            }
-            AudioCommand::PlayTestTone(device) => {
-                let _ = RingtonePlayer::play_test_tone(&device);
             }
             AudioCommand::SetHotplugChannel(tx) => {
                 engine.hotplug_tx = Some(tx);

@@ -6,7 +6,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
   Switch,
   Typography,
   Divider,
@@ -22,7 +21,6 @@ import {
   Alert,
   Select,
   MenuItem,
-  Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -40,7 +38,6 @@ import SpeakerIcon from "@mui/icons-material/Speaker";
 import MicIcon from "@mui/icons-material/Mic";
 import RingVolumeIcon from "@mui/icons-material/RingVolume";
 import LanguageIcon from "@mui/icons-material/Language";
-import VolumeUpOutlinedIcon from "@mui/icons-material/VolumeUpOutlined";
 import PhoneAndroidIcon from "@mui/icons-material/PhoneAndroid";
 import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "react-router-dom";
@@ -120,9 +117,6 @@ function Settings() {
   const microphones = pjsipDevices.filter((d) => d.input_count > 0);
   const ringtoneDevices = devices.filter((d) => d.device_type === "Ringtone");
 
-  const handleTestTone = useCallback((deviceId: string) => {
-    invoke("play_test_tone", { deviceId });
-  }, []);
 
   // pjsip device ids are integer indices (as strings). The Speaker and
   // Microphone selectors may point to different pjsip indices, so each handler
@@ -362,15 +356,6 @@ function Settings() {
                         }
                         sx={{ "& .MuiTypography-root": { fontSize: "0.78rem" }, my: -0.25, flex: 1, minWidth: 0 }}
                       />
-                      <Tooltip title={t("settings.test_tone")}>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleTestTone(d.id)}
-                          sx={{ mr: 0.5, "&:hover": { color: "primary.main" } }}
-                        >
-                          <VolumeUpOutlinedIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
                     </Box>
                   ))}
                 </RadioGroup>

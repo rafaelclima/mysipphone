@@ -281,7 +281,6 @@ async fn main() {
             commands::set_audio_ringtone_device,
             commands::play_ringtone,
             commands::stop_ringtone,
-            commands::play_test_tone,
             commands::set_audio_mute,
             commands::get_incoming_call_info,
             commands::set_window_corner_radius,

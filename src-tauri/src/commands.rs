@@ -274,16 +274,6 @@ pub async fn stop_ringtone(
 }
 
 #[tauri::command]
-pub async fn play_test_tone(
-    state: State<'_, Arc<Mutex<AppState>>>,
-    device_id: String,
-) -> Result<(), String> {
-    let app = state.lock().await;
-    app.send_audio_command(AudioCommand::PlayTestTone(device_id));
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn shutdown(
     state: State<'_, Arc<Mutex<AppState>>>,
     app_handle: tauri::AppHandle,
