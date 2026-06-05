@@ -4,6 +4,7 @@ import { useTranslation } from "../i18n";
 import { DEVICE_THEMES } from "../theme/deviceThemes";
 import type { DeviceTheme } from "../theme/deviceThemes";
 import { DialpadIcon, ContactsNavIcon, HistoryNavIcon, SettingsNavIcon } from "../theme/icons";
+import { useCallStore } from "../store/useCallStore";
 
 interface NavigationBarProps {
   deviceTheme: DeviceTheme;
@@ -15,6 +16,7 @@ function NavigationBar({ deviceTheme, navBgColor }: NavigationBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const cfg = DEVICE_THEMES[deviceTheme];
+  const hasActiveCall = useCallStore((s) => s.calls.length > 0);
 
   const currentValue =
     {
@@ -58,7 +60,29 @@ function NavigationBar({ deviceTheme, navBgColor }: NavigationBarProps) {
           },
         }}
       >
-        <BottomNavigationAction label={t("nav.dial")} icon={<DialpadIcon deviceTheme={deviceTheme} />} />
+        <BottomNavigationAction
+          label={t("nav.dial")}
+          icon={
+            <Box sx={{ position: "relative", display: "inline-flex" }}>
+              <DialpadIcon deviceTheme={deviceTheme} />
+              {hasActiveCall && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: -1,
+                    right: -3,
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: "success.main",
+                    border: "1.5px solid",
+                    borderColor: navBgColor,
+                  }}
+                />
+              )}
+            </Box>
+          }
+        />
         <BottomNavigationAction label={t("nav.contacts")} icon={<ContactsNavIcon deviceTheme={deviceTheme} />} />
         <BottomNavigationAction label={t("nav.history")} icon={<HistoryNavIcon deviceTheme={deviceTheme} />} />
         <BottomNavigationAction label={t("nav.settings")} icon={<SettingsNavIcon deviceTheme={deviceTheme} />} />

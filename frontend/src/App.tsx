@@ -173,6 +173,20 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // If the user is in a call and the bottom nav takes them back to the
+  // Dialer (route "/"), redirect to the active call screen. The Dialer
+  // is unreachable while a call is in progress — the user can return to
+  // the call from any tab by clicking the Dialer button, which is also
+  // the visual indicator for the active call.
+  useEffect(() => {
+    if (isPopup) return;
+    if (location.pathname !== "/") return;
+    const { activeCallId, calls } = useCallStore.getState();
+    if (activeCallId && calls.length > 0) {
+      navigate(`/call/${activeCallId}`, { replace: true });
+    }
+  }, [isPopup, location.pathname, navigate]);
+
   if (isPopup) return <IncomingPopup />;
 
   const showIncoming = incomingCall && useCallStore.getState().calls.length === 0;
