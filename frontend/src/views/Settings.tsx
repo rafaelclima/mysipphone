@@ -64,8 +64,6 @@ function Settings() {
   const {
     devices,
     pjsipDevices,
-    currentCaptureIdx,
-    currentPlaybackIdx,
     loading: devicesLoading,
     fetchDevices,
   } = useAudioDevicesStore();
@@ -156,37 +154,37 @@ function Settings() {
     });
   }, [setInputDevice]);
 
-  // On first mount, after the pjsip device list and the current pjsip
-  // (capture, playback) indices are available, pre-populate the Speaker/
-  // Microphone selectors with the device that is actually in use. Without
-  // this, the user would open Settings and see a list of devices with none
-  // selected, even though audio is already routed through a specific pjsip
-  // index. If the user already made a selection (inputDeviceId /
-  // outputDeviceId are non-null and valid), that selection is preserved.
-  // Stale IDs (e.g., from an unplugged USB headset) are silently cleared
-  // from localStorage.
+  // On first mount, after the pjsip device list is available, pre-populate
+  // the Speaker/Microphone/Ringtone selectors with the system's "default"
+  // device. This gives the user a sensible baseline on first open across
+  // machines and matches what the ALSA "default" already points to. The
+  // user can override later. If the user already made a selection
+  // (inputDeviceId / outputDeviceId / ringtoneDeviceId are non-null and
+  // valid), that selection is preserved. Stale IDs (e.g., from an unplugged
+  // USB headset) are silently cleared from localStorage.
   const reapplyRef = useRef(false);
   useEffect(() => {
     if (reapplyRef.current) return;
     if (pjsipDevices.length === 0) return;
-    if (currentCaptureIdx === null || currentPlaybackIdx === null) return;
     reapplyRef.current = true;
 
-    const { inputDeviceId, outputDeviceId } = useSettingsStore.getState();
+    const { inputDeviceId, outputDeviceId, ringtoneDeviceId } = useSettingsStore.getState();
 
-    const validate = (id: string | null, required: "in" | "out"): { ok: boolean; idx: number | null } => {
-      if (id === null) return { ok: true, idx: null };
+    // Validate user-persisted choices against the current pjsip device list.
+    // pjsip ids are integer indices stored as strings.
+    const validatePjsip = (id: string | null, required: "in" | "out"): { ok: boolean } => {
+      if (id === null) return { ok: true };
       const idx = parseInt(id, 10);
-      if (Number.isNaN(idx)) return { ok: false, idx: null };
+      if (Number.isNaN(idx)) return { ok: false };
       const device = pjsipDevices.find((d) => d.id === id);
-      if (!device) return { ok: false, idx: null };
-      if (required === "in" && device.input_count === 0) return { ok: false, idx };
-      if (required === "out" && device.output_count === 0) return { ok: false, idx };
-      return { ok: true, idx };
+      if (!device) return { ok: false };
+      if (required === "in" && device.input_count === 0) return { ok: false };
+      if (required === "out" && device.output_count === 0) return { ok: false };
+      return { ok: true };
     };
 
-    const capture = validate(inputDeviceId, "in");
-    const playback = validate(outputDeviceId, "out");
+    const capture = validatePjsip(inputDeviceId, "in");
+    const playback = validatePjsip(outputDeviceId, "out");
 
     if (!capture.ok) {
       console.warn("Cleared stale inputDeviceId (no matching pjsip device):", inputDeviceId);
@@ -197,25 +195,32 @@ function Settings() {
       clearOutputDevice();
     }
 
-    // Resolve final values: user's persisted choice wins; otherwise fall back
-    // to whatever pjsip is currently routing audio through, so the radios are
-    // checked on first open and the user can see "what is actually being used".
-    const finalCaptureId = capture.idx ?? currentCaptureIdx;
-    const finalPlaybackId = playback.idx ?? currentPlaybackIdx;
+    // Speaker + Microphone: pre-select the pjsip device whose name is
+    // "default" (pjsip exposes the ALSA "default" device with that exact
+    // name). The same device serves both directions because it's a
+    // full-duplex ALSA node. If the user's choice is already valid, it wins.
+    const defaultPjsip = pjsipDevices.find((d) => d.name.toLowerCase() === "default");
+    if (defaultPjsip) {
+      if (inputDeviceId === null && defaultPjsip.input_count > 0) {
+        setInputDevice(defaultPjsip.id);
+      }
+      if (outputDeviceId === null && defaultPjsip.output_count > 0) {
+        setOutputDevice(defaultPjsip.id);
+      }
+    }
 
-    if (inputDeviceId === null && finalCaptureId !== null) {
-      const id = String(finalCaptureId);
-      if (pjsipDevices.some((d) => d.id === id && d.input_count > 0)) {
-        setInputDevice(id);
+    // Ringtone: pre-select the ALSA "default" device. The ringtone player
+    // opens ALSA directly (bypasses pjsip), so we use the ALSA list and
+    // match by id ("default") or by name containing "default".
+    if (ringtoneDeviceId === null) {
+      const defaultRingtone = ringtoneDevices.find(
+        (d) => d.id === "default" || d.name.toLowerCase().includes("default"),
+      );
+      if (defaultRingtone) {
+        setRingtoneDevice(defaultRingtone.id);
       }
     }
-    if (outputDeviceId === null && finalPlaybackId !== null) {
-      const id = String(finalPlaybackId);
-      if (pjsipDevices.some((d) => d.id === id && d.output_count > 0)) {
-        setOutputDevice(id);
-      }
-    }
-  }, [pjsipDevices, currentCaptureIdx, currentPlaybackIdx, clearInputDevice, clearOutputDevice, setInputDevice, setOutputDevice]);
+  }, [pjsipDevices, ringtoneDevices, clearInputDevice, clearOutputDevice, setInputDevice, setOutputDevice, setRingtoneDevice]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
