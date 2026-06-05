@@ -9,6 +9,8 @@ import { SnackbarAlert } from "./components/SnackbarAlert";
 import IncomingPopup from "./views/IncomingPopup";
 import { useAuthStore, AccountConfig } from "./store/useAuthStore";
 import { useCallStore, CallState } from "./store/useCallStore";
+import { useAudioDevicesStore } from "./store/useAudioDevicesStore";
+import { useSettingsStore } from "./store/useSettingsStore";
 
 const Dialer = lazy(() => import("./views/Dialer"));
 const ActiveCall = lazy(() => import("./views/ActiveCall"));
@@ -47,11 +49,54 @@ function App() {
   const setActiveCall = useCallStore((s) => s.setActiveCall);
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
   const removeCall = useCallStore((s) => s.removeCall);
+  const pjsipDevices = useAudioDevicesStore((s) => s.pjsipDevices);
+  const fetchDevices = useAudioDevicesStore((s) => s.fetchDevices);
 
   const [snack, setSnack] = useState({ open: false, msg: "" });
   const closeSnack = () => setSnack({ open: false, msg: "" });
   const unlistenersRef = useRef<(() => void)[]>([]);
   const isPopup = getCurrentWebviewWindow().label.startsWith("popup-");
+
+  // R1: On mount, fetch audio devices so `pjsipDevices` is populated.
+  // Required so the apply-persisted effect below can validate the
+  // user's saved Speaker/Microphone choice against pjsip's actual
+  // device list. Without this, pjsip keeps the first working device
+  // it auto-selected at startup (e.g., idx 0 = lavrate) and the
+  // user's persisted choice is shown in the radio but not active
+  // in pjsip. The first call would then use the wrong device.
+  useEffect(() => {
+    fetchDevices();
+  }, [fetchDevices]);
+
+  // R1: Once pjsipDevices is available, if the user has a valid
+  // persisted Speaker + Microphone choice in localStorage, apply it
+  // to pjsip via `pjsua_set_snd_dev(capture, playback)`. Runs once
+  // per app launch, gated by ref. Errors are logged and the user
+  // retains the default pjsip startup routing; they can re-open
+  // Settings to retry after a transient pjsip/ALSA failure.
+  const applyPersistedRef = useRef(false);
+  useEffect(() => {
+    if (applyPersistedRef.current) return;
+    if (pjsipDevices.length === 0) return;
+    applyPersistedRef.current = true;
+
+    const { inputDeviceId, outputDeviceId } = useSettingsStore.getState();
+    if (inputDeviceId === null || outputDeviceId === null) return;
+
+    const captureId = parseInt(inputDeviceId, 10);
+    const playbackId = parseInt(outputDeviceId, 10);
+    if (Number.isNaN(captureId) || Number.isNaN(playbackId)) return;
+
+    const inputDevice = pjsipDevices.find((d) => d.id === inputDeviceId);
+    const outputDevice = pjsipDevices.find((d) => d.id === outputDeviceId);
+    if (!inputDevice || !outputDevice) return;
+    if (inputDevice.input_count === 0) return;
+    if (outputDevice.output_count === 0) return;
+
+    invoke("set_audio_device", { captureId, playbackId }).catch((e) => {
+      console.warn("R1: failed to apply persisted audio device:", e);
+    });
+  }, [pjsipDevices]);
 
   useEffect(() => {
     if (isPopup) return;

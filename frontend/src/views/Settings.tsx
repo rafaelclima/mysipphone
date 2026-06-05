@@ -209,6 +209,29 @@ function Settings() {
       }
     }
 
+    // R1: After the reapply (which may have just pre-selected "default"
+    // for a first-time user), apply the now-resolved Speaker + Microphone
+    // pair to pjsip. Without this, pjsip would keep its startup default
+    // (idx 0) until the next app launch — even though localStorage now
+    // has the user's choice. App.tsx already applies on cold start; this
+    // covers the in-session case where the user opens Settings for the
+    // first time and the reapply populates localStorage.
+    const finalInputId = useSettingsStore.getState().inputDeviceId;
+    const finalOutputId = useSettingsStore.getState().outputDeviceId;
+    if (finalInputId !== null && finalOutputId !== null) {
+      const capId = parseInt(finalInputId, 10);
+      const playId = parseInt(finalOutputId, 10);
+      if (!Number.isNaN(capId) && !Number.isNaN(playId)) {
+        const cap = pjsipDevices.find((d) => d.id === finalInputId);
+        const play = pjsipDevices.find((d) => d.id === finalOutputId);
+        if (cap && play && cap.input_count > 0 && play.output_count > 0) {
+          invoke("set_audio_device", { captureId: capId, playbackId: playId }).catch((e) => {
+            console.warn("R1: failed to apply audio device from Settings reapply:", e);
+          });
+        }
+      }
+    }
+
     // Ringtone: pre-select the ALSA "default" device. The ringtone player
     // opens ALSA directly (bypasses pjsip), so we use the ALSA list and
     // match by id ("default") or by name containing "default".
