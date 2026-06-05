@@ -48,14 +48,6 @@ async fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            #[cfg(debug_assertions)]
-            {
-                if let Some(window) = handle.get_webview_window("main") {
-                    #[allow(clippy::let_unit_value)]
-                    let _ = window.open_devtools();
-                }
-            }
-
             // Set initial window corner radius (iPhone default = 44px)
             let _ = window_utils::set_corner_radius(44.0);
 
@@ -297,7 +289,6 @@ async fn main() {
             commands::set_audio_device,
             commands::create_tls_transport,
             commands::get_pjsip_audio_devices,
-            commands::get_current_pjsip_audio_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
