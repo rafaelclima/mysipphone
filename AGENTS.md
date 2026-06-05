@@ -120,9 +120,7 @@ Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap v
 - i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
 
 ## Known Issues
-1. **Device enumeration name garbling** — `pjmedia_snd_dev_info.name` display is garbled in
-   eprintln output (truncated first character). Cosmetic only; device selection works correctly.
-2. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)
+1. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)
    on COSMIC/Wayland. Crashes after SIP engine starts, on `pjsip-engine` thread. Reproduces even
    with pre-change code (`git stash`). Root cause is undefined behavior (likely in pjsip FFI or
    WebKitGTK interaction) exploited by compiler optimizations. Workaround: `[profile.release]
@@ -219,6 +217,12 @@ These MUST match the Rust `_opaque` padding exactly:
 - `pjsua_media_config`   = **832** bytes (Rust: `[u8; 2048]` — oversize OK)
 - `pjsua_acc_config`     = **4960** bytes (declared with full fields in Rust — only used via C helper)
 - `pjsua_callback`       = **464** bytes (fully accessed via C helpers)
+- `pjmedia_snd_dev_info` = **76 bytes on Linux** (name[64] + 3 × u32), **140 bytes on Windows** (name[128] + 3 × u32).
+  `PJMEDIA_AUD_DEV_INFO_NAME_LEN` is platform-conditional in pjsip (128 on Windows, 64 elsewhere,
+  per `pjmedia-audiodev/config.h`); the Rust binding now uses `#[cfg(target_os = "windows")]`.
+  **Mismatched layout silently corrupts `input_count`/`output_count` (read from wrong offsets) and
+  the displayed device names — Speaker/Microphone filtering breaks entirely.** Size asserted
+  in `cargo test -p pjsip-sys`.
 
 **CRITICAL:** If `_opaque` is too small, `pjsua_config_default()` or `mysip_apply_settings()`
 writes past buffer → corrupts memory → `pjsua_init` returns `PJ_EINVAL` (70004).

@@ -167,8 +167,17 @@ extern "C" {
 }
 
 // ── Sound device info ──
+// pjsip 2.17's PJMEDIA_AUD_DEV_INFO_NAME_LEN is 128 on Windows and 64 on
+// other platforms (see pjmedia-audiodev/config.h). The Rust binding must
+// match the platform-specific value or the struct layout is off: with the
+// wrong size, the `input_count`/`output_count`/`default_samples_per_sec`
+// fields are read from the wrong offsets and produce garbage values, which
+// breaks Speaker/Microphone filtering and the displayed device names.
 
+#[cfg(target_os = "windows")]
 pub const PJMEDIA_AUD_DEV_INFO_NAME_LEN: usize = 128;
+#[cfg(not(target_os = "windows"))]
+pub const PJMEDIA_AUD_DEV_INFO_NAME_LEN: usize = 64;
 
 #[repr(C)]
 pub struct pjmedia_snd_dev_info {
@@ -299,5 +308,18 @@ mod tests {
             "pjsua_logging_config size mismatch");
         assert_eq!(std::mem::size_of::<pjsua_acc_config>(), 4960,
             "pjsua_acc_config size mismatch: update _opaque padding");
+
+        // pjmedia_snd_dev_info layout must match the C struct exactly.
+        // On Linux: 64 (name) + 4 + 4 + 4 = 76 bytes.
+        // On Windows: 128 (name) + 4 + 4 + 4 = 140 bytes.
+        // Mismatched layout causes input_count/output_count to be read from
+        // the wrong offsets (garbage), which breaks Speaker/Microphone
+        // filtering and the displayed device names in the Settings UI.
+        #[cfg(target_os = "windows")]
+        const EXPECTED_SND_DEV_INFO_SIZE: usize = 140;
+        #[cfg(not(target_os = "windows"))]
+        const EXPECTED_SND_DEV_INFO_SIZE: usize = 76;
+        assert_eq!(std::mem::size_of::<pjmedia_snd_dev_info>(), EXPECTED_SND_DEV_INFO_SIZE,
+            "pjmedia_snd_dev_info size mismatch: check PJMEDIA_AUD_DEV_INFO_NAME_LEN for this platform");
     }
 }
