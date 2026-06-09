@@ -24,8 +24,37 @@ if [ -f /tmp/mysipphone.db ] && [ ! -f "$DATA_DIR/mysipphone.db" ]; then
   echo "  Database migrated from /tmp/mysipphone.db"
 fi
 
+# ── 4. Install gnome-keyring for secure SIP password storage ──
+echo "[2/6] Setting up credential storage..."
+if command -v apt &>/dev/null; then
+  if ! dpkg -s gnome-keyring &>/dev/null 2>&1; then
+    echo "  Installing gnome-keyring (Debian/Ubuntu/Pop)..."
+    sudo apt install -y gnome-keyring 2>/dev/null || echo "  Skipped (no sudo or already installed)"
+  else
+    echo "  gnome-keyring already installed."
+  fi
+elif command -v dnf &>/dev/null; then
+  if ! rpm -q gnome-keyring &>/dev/null 2>&1; then
+    echo "  Installing gnome-keyring (Fedora)..."
+    sudo dnf install -y gnome-keyring 2>/dev/null || echo "  Skipped (no sudo or already installed)"
+  else
+    echo "  gnome-keyring already installed."
+  fi
+elif command -v pacman &>/dev/null; then
+  if ! pacman -Qi gnome-keyring &>/dev/null 2>&1; then
+    echo "  Installing gnome-keyring (Arch)..."
+    sudo pacman -S --needed gnome-keyring 2>/dev/null || echo "  Skipped (no sudo or already installed)"
+  else
+    echo "  gnome-keyring already installed."
+  fi
+else
+  echo "  Package manager not detected. Install gnome-keyring manually for"
+  echo "  secure SIP password storage, or proceed without it (passwords"
+  echo "  will be stored in SQLite)."
+fi
+
 # ── 5. Build Rust project ──
-echo "[2/5] Building mySIPPhone (release)..."
+echo "[3/6] Building mySIPPhone (release)..."
 
 # Build frontend first so Tauri embeds the fresh bundle
 if [ -f "${PROJECT_DIR}/frontend/package.json" ]; then
@@ -37,13 +66,13 @@ source "$HOME/.cargo/env"
 (cd "${PROJECT_DIR}" && cargo tauri build)
 
 # ── 6. Install binary ──
-echo "[3/5] Installing binary..."
+echo "[4/6] Installing binary..."
 mkdir -p "$HOME/.local/bin"
 cp "${PROJECT_DIR}/target/release/mysipphone" "$HOME/.local/bin/mysipphone"
 chmod +x "$HOME/.local/bin/mysipphone"
 
-# ── 5. Install pjsip shared libraries ──
-echo "[4/5] Installing pjsip libraries..."
+# ── 7. Install pjsip shared libraries ──
+echo "[5/6] Installing pjsip libraries..."
 INSTALL_LIBDIR="$HOME/.local/lib/mysipphone"
 mkdir -p "$INSTALL_LIBDIR"
 
@@ -68,8 +97,8 @@ if command -v strip &>/dev/null; then
   strip --strip-unneeded "$INSTALL_LIBDIR"/*.so.2 2>/dev/null || true
 fi
 
-# ── 6. Desktop entry and icon ──
-echo "[5/5] Creating desktop entry..."
+# ── 8. Desktop entry and icon ──
+echo "[6/6] Creating desktop entry..."
 
 DESKTOP_DIR="$HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"

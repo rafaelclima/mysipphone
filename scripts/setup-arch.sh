@@ -32,7 +32,7 @@ fi
 # ─── 2. Dependencies ───────────────────────────────────────
 echo "[1/5] Verificando dependências..."
 
-DEPS=("webkit2gtk-4.1")
+DEPS=("webkit2gtk-4.1" "gnome-keyring")
 MISSING=()
 
 for pkg in "${DEPS[@]}"; do
@@ -153,6 +153,17 @@ DESKTOP_EOF
 
 chmod 644 "$DESKTOP_DIR/$APP_ID.desktop"
 info "Atalho criado em $DESKTOP_DIR/$APP_ID.desktop"
+
+# ─── 5. Hyprland keyring hint ────────────────────────────────
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  echo ""
+  echo "⚠️  Se estiver usando Hyprland, garanta que o gnome-keyring seja"
+  echo "   iniciado automaticamente. Adicione ao ~/.config/hypr/hyprland.conf:"
+  echo ""
+  echo "   exec-once = dbus-update-activation-environment --systemd --all"
+  echo "   exec-once = gnome-keyring-daemon --start --components=secrets"
+  echo ""
+fi
 
 # ─── 6. Update database ────────────────────────────────────
 echo "[5/5] Atualizando banco de dados de aplicativos..."

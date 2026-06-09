@@ -516,9 +516,16 @@ impl PjsuaEngine {
                 }
                 Ok(crate::SipCommand::CreateTlsTransport { port, cert_file, privkey_file, ca_file }) => {
                     tracing::info!("Creating TLS transport on port {}", port);
-                    let cert = CString::new(cert_file).unwrap_or_default();
-                    let key = CString::new(privkey_file).unwrap_or_default();
-                    let ca = CString::new(ca_file).unwrap_or_default();
+                    let cert = CString::new(cert_file);
+                    let key = CString::new(privkey_file);
+                    let ca = CString::new(ca_file);
+                    let (cert, key, ca) = match (cert, key, ca) {
+                        (Ok(c), Ok(k), Ok(a)) => (c, k, a),
+                        _ => {
+                            tracing::warn!("TLS cert/key/ca path contains null byte");
+                            continue;
+                        }
+                    };
                     let mut tp_id: c_int = -1;
                     let status = unsafe {
                         mysip_create_tls_transport(

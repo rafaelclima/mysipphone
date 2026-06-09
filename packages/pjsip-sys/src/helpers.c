@@ -57,8 +57,11 @@ int mysip_make_call(int acc_id, const char *uri, int *out_call_id)
             for (size_t i = 0; i + 2 < user_len; i++) {
                 if (user_start[i] == '%' && user_start[i+1] == '2' && user_start[i+2] == '3') {
                     user_start[i] = '#';
-                    memmove(&user_start[i+1], &user_start[i+3], 
-                            uri_len - (size_t)(user_start - work_buf + i + 3) + 1);
+                    size_t after = uri_len - (size_t)(user_start - work_buf + i + 3) + 1;
+                    if (after > sizeof(work_buf)) {
+                        after = 0;
+                    }
+                    memmove(&user_start[i+1], &user_start[i+3], after);
                     uri_len -= 2;
                     user_len -= 2;
                 }
@@ -358,7 +361,7 @@ int mysip_create_tls_transport(int port,
         cfg.tls_setting.ca_list_file = pj_str((char *)ca_file);
     }
 
-    cfg.tls_setting.verify_server = PJ_FALSE;
+    cfg.tls_setting.verify_server = PJ_TRUE;
     cfg.tls_setting.verify_client = PJ_FALSE;
 
     pjsua_transport_id tp_id = -1;

@@ -332,6 +332,22 @@ pub async fn set_audio_device(
     Ok(())
 }
 
+fn validate_cert_path(path: &str) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Certificate path is empty".into());
+    }
+    let p = std::path::Path::new(path);
+    let canonical = p.canonicalize().map_err(|_| format!("Invalid path: {}", path))?;
+    let allowed = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("mysipphone")
+        .join("certs");
+    if !canonical.starts_with(&allowed) {
+        return Err(format!("Path outside allowed directory: {}", path));
+    }
+    Ok(canonical.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 pub async fn create_tls_transport(
     state: State<'_, Arc<Mutex<AppState>>>,
@@ -340,12 +356,15 @@ pub async fn create_tls_transport(
     privkey_file: String,
     ca_file: String,
 ) -> Result<(), String> {
+    let cert = validate_cert_path(&cert_file)?;
+    let key = validate_cert_path(&privkey_file)?;
+    let ca = validate_cert_path(&ca_file)?;
     let app = state.lock().await;
     app.send_command(SipCommand::CreateTlsTransport {
         port,
-        cert_file,
-        privkey_file,
-        ca_file,
+        cert_file: cert,
+        privkey_file: key,
+        ca_file: ca,
     });
     Ok(())
 }
