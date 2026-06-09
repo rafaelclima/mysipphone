@@ -88,6 +88,7 @@ Sem sudo. Instala em `~/.local/`:
 |------------|------------|
 | GTK3 + WebKit2GTK 4.1 | Webview do Tauri |
 | ALSA (`libasound2`) | Áudio (PipeWire é compatível) |
+| `gnome-keyring` (opcional) | Armazenamento seguro de senha SIP |
 
 ## Como Usar
 
@@ -327,6 +328,7 @@ No sudo required. Installs to `~/.local/`:
 |---------|---------|
 | GTK3 + WebKit2GTK 4.1 | Tauri webview |
 | ALSA (`libasound2`) | Audio (PipeWire compatible) |
+| `gnome-keyring` (optional) | Secure SIP password storage |
 
 ## Usage
 

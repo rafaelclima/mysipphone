@@ -2,11 +2,50 @@ use crate::Database;
 use crate::PersistenceError;
 use rusqlite::params;
 
+/// Keyring service name for SIP passwords.
+const KEYRING_SERVICE: &str = "mysipphone";
+
+fn keyring_user(account_id: &str) -> String {
+    format!("sip:{}", account_id)
+}
+
+fn password_from_keyring(account_id: &str) -> Result<String, PersistenceError> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_user(account_id))?;
+    entry.get_password().map_err(Into::into)
+}
+
+fn password_to_keyring(account_id: &str, password: &str) -> Result<(), PersistenceError> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_user(account_id))?;
+    entry.set_password(password).map_err(Into::into)
+}
+
+#[allow(dead_code)]
+fn password_delete_from_keyring(account_id: &str) -> Result<(), PersistenceError> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_user(account_id))?;
+    entry.delete_credential().ok();
+    Ok(())
+}
+
 impl Database {
     pub fn save_account(
         &self,
         account: &shared::AccountConfig,
     ) -> Result<(), PersistenceError> {
+        // Try OS keyring (Secret Service / GNOME Keyring / KDE Wallet).
+        // If unavailable (headless, COSMIC w/o gnome-keyring, etc.), fall
+        // back to SQLite storage with a warning. The password column is
+        // always written — either as `""` (keyring ok) or the actual value.
+        let use_keyring = if !account.password.is_empty() {
+            match password_to_keyring(&account.id, &account.password) {
+                Ok(_) => true,
+                Err(e) => {
+                    tracing::warn!("Keyring unavailable, storing password in SQLite: {e}");
+                    false
+                }
+            }
+        } else {
+            false
+        };
         let conn = self.connection();
         conn.execute(
             "INSERT OR REPLACE INTO accounts (id, display_name, sip_uri, registrar, username, password, realm, transport, is_active)
@@ -17,7 +56,7 @@ impl Database {
                 account.sip_uri,
                 account.registrar,
                 account.username,
-                account.password,
+                if use_keyring { "" } else { &account.password },
                 account.realm,
                 format!("{:?}", account.transport),
                 true,
@@ -38,13 +77,31 @@ impl Database {
                 "tls" => shared::SipTransport::Tls,
                 _ => shared::SipTransport::Udp,
             };
+            let account_id: String = row.get(0)?;
+            let sql_password: String = row.get(5)?;
+            let password = if sql_password.is_empty() {
+                // Password was stored in keyring — try to retrieve it.
+                // If keyring is unavailable, return empty (user must re-enter).
+                password_from_keyring(&account_id).unwrap_or_else(|e| {
+                    tracing::warn!("Keyring unavailable, password empty for {}: {e}", account_id);
+                    String::new()
+                })
+            } else {
+                // Legacy: password still in SQLite (keyring was unavailable
+                // at save time, or account predates keyring integration).
+                // Attempt one-time migration to keyring on read.
+                if let Err(e) = password_to_keyring(&account_id, &sql_password) {
+                    tracing::warn!("Could not migrate password to keyring: {e}");
+                }
+                sql_password
+            };
             Ok(shared::AccountConfig {
-                id: row.get(0)?,
+                id: account_id,
                 display_name: row.get(1)?,
                 sip_uri: row.get(2)?,
                 registrar: row.get(3)?,
                 username: row.get(4)?,
-                password: row.get(5)?,
+                password,
                 realm: row.get(6)?,
                 transport,
             })

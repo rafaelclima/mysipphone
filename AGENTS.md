@@ -15,6 +15,7 @@
 - No cloud services or backend servers
 - No `unwrap()` in production code (use `thiserror`)
 - No manually declaring C struct layouts in Rust for pjsip types (use C helpers instead)
+- No `keyring = "3"` without `features = ["sync-secret-service"]` — default features use mock (in-memory) which loses passwords on restart
 
 # Preferred Rust Patterns
 
