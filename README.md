@@ -12,10 +12,12 @@
 
 ## Capturas de Tela
 
-| Discador & Chamada Ativa | Config. de Conta & Ajustes | Chamada Recebida |
-|---|---|---|
-| ![Discador](resources/prints/01.png) | ![Config. de Conta](resources/prints/02.png) | ![Chamada Recebida](resources/prints/03.png) |
-| ![Chamada Ativa](resources/prints/04.png) | ![Ajustes](resources/prints/05.png) | |
+| Tela | iPhone | Galaxy | Pixel |
+|------|--------|--------|-------|
+| **Discador** | <img src="resources/prints/iphone_dial.png" width="160"> | <img src="resources/prints/galaxy_dial.png" width="160"> | <img src="resources/prints/pixel_dial.png" width="160"> |
+| **Contatos** | <img src="resources/prints/iphone_contatos.png" width="160"> | <img src="resources/prints/galaxy_contatos.png" width="160"> | <img src="resources/prints/pixel_contatos.png" width="160"> |
+| **Histórico** | <img src="resources/prints/iphone_historico.png" width="160"> | <img src="resources/prints/galaxy_historico.png" width="160"> | <img src="resources/prints/pixel_historico.png" width="160"> |
+| **Configurações** | <img src="resources/prints/iphone_config.png" width="160"> | <img src="resources/prints/galaxy_config.png" width="160"> | <img src="resources/prints/pixel_config.png" width="160"> |
 
 ## Funcionalidades
 
@@ -249,10 +251,12 @@ MIT
 
 ## Screenshots
 
-| Dialer & Active Call | Account Setup & Settings | Incoming Call |
-|---|---|---|
-| ![Dialer](resources/prints/01.png) | ![Account Setup](resources/prints/02.png) | ![Incoming Call](resources/prints/03.png) |
-| ![Active Call](resources/prints/04.png) | ![Settings](resources/prints/05.png) | |
+| Screen | iPhone | Galaxy | Pixel |
+|--------|--------|--------|-------|
+| **Dialer** | <img src="resources/prints/iphone_dial.png" width="160"> | <img src="resources/prints/galaxy_dial.png" width="160"> | <img src="resources/prints/pixel_dial.png" width="160"> |
+| **Contacts** | <img src="resources/prints/iphone_contatos.png" width="160"> | <img src="resources/prints/galaxy_contatos.png" width="160"> | <img src="resources/prints/pixel_contatos.png" width="160"> |
+| **Call History** | <img src="resources/prints/iphone_historico.png" width="160"> | <img src="resources/prints/galaxy_historico.png" width="160"> | <img src="resources/prints/pixel_historico.png" width="160"> |
+| **Settings** | <img src="resources/prints/iphone_config.png" width="160"> | <img src="resources/prints/galaxy_config.png" width="160"> | <img src="resources/prints/pixel_config.png" width="160"> |
 
 ## Features
 
