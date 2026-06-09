@@ -231,7 +231,7 @@ pjsip (C) → pjsip-sys (FFI) → sip-engine (Rust)
 
 ## Licença
 
-MIT
+APACHE 2.0
 
 ---
 
@@ -470,4 +470,4 @@ Audio: `ALSA ← audio-engine ← Tauri commands ← React`
 
 ## License
 
-MIT
+APACHE 2.0
