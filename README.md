@@ -18,6 +18,7 @@
 | **Contatos** | <img src="resources/prints/iphone_contatos.png" width="160"> | <img src="resources/prints/galaxy_contatos.png" width="160"> | <img src="resources/prints/pixel_contatos.png" width="160"> |
 | **Histórico** | <img src="resources/prints/iphone_historico.png" width="160"> | <img src="resources/prints/galaxy_historico.png" width="160"> | <img src="resources/prints/pixel_historico.png" width="160"> |
 | **Configurações** | <img src="resources/prints/iphone_config.png" width="160"> | <img src="resources/prints/galaxy_config.png" width="160"> | <img src="resources/prints/pixel_config.png" width="160"> |
+| **Em Ligação** | <img src="resources/prints/in_call.png" width="160"> | <img src="resources/prints/in_call.png" width="160"> | <img src="resources/prints/in_call.png" width="160"> |
 
 ## Funcionalidades
 
@@ -258,6 +259,7 @@ APACHE 2.0
 | **Contacts** | <img src="resources/prints/iphone_contatos.png" width="160"> | <img src="resources/prints/galaxy_contatos.png" width="160"> | <img src="resources/prints/pixel_contatos.png" width="160"> |
 | **Call History** | <img src="resources/prints/iphone_historico.png" width="160"> | <img src="resources/prints/galaxy_historico.png" width="160"> | <img src="resources/prints/pixel_historico.png" width="160"> |
 | **Settings** | <img src="resources/prints/iphone_config.png" width="160"> | <img src="resources/prints/galaxy_config.png" width="160"> | <img src="resources/prints/pixel_config.png" width="160"> |
+| **In Call** | <img src="resources/prints/in_call.png" width="160"> | <img src="resources/prints/in_call.png" width="160"> | <img src="resources/prints/in_call.png" width="160"> |
 
 ## Features
 
