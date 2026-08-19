@@ -776,3 +776,41 @@ Sempre que encontrar um problema, capture:
 - [ ] 9.1 Derrubar rede
 - [ ] 9.2 Matar e religar
 ```
+
+---
+
+## 10. Validação Arch/Omarchy (Hyprland, AMD Baffin) — 2026-08
+
+### 10.1 Build nativo (release, `opt-level = 0`)
+
+| Passo | Ação | Resultado esperado |
+|-------|------|--------------------|
+| 1 | `PKG_CONFIG_PATH=$PWD/pjsip-dist/lib/pkgconfig cargo build --release` | Compila sem erros (~2 min na máquina de teste) |
+| 2 | Executar binário com `LD_LIBRARY_PATH=$PWD/pjsip-dist/lib` | Janela mapeia; WebKitWebProcess do sistema spawna |
+| 3 | Conferir `hyprctl clients` | `class: mysipphone`, janela 320×600, flutuante (com regra Hyprland) |
+
+**Logs esperados (binário nativo):**
+```
+sip_engine::account: Starting pjsip engine
+sip_engine::account: UDP transport created on port 5060
+audio_engine: Audio engine initialized with 15 devices
+```
+
+**O que verificar:** UI renderiza (nenhum `EGL_BAD_PARAMETER`), registro SIP,
+áudio bidirecional em chamada.
+
+### 10.2 AppImage (fallback sem recompilar)
+
+| Passo | Ação | Resultado esperado |
+|-------|------|--------------------|
+| 1 | `./mySIPPhone_0.1.3_amd64.AppImage --appimage-extract` | Extrai em `squashfs-root/` |
+| 2 | `LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone ./squashfs-root/usr/bin/mysipphone` | Janela renderiza (WebKit do sistema em vez do embutido) |
+| 3 | Rodar o AppImage direto (controle) | **Falha esperada**: `Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...`, janela em branco |
+
+### 10.3 Janela em formato celular (Hyprland)
+
+| Passo | Ação | Resultado esperado |
+|-------|------|--------------------|
+| 1 | Regra: `o.window("mysipphone", { float = true, center = true, size = { 320, 600 } })` em `~/.config/hypr/hyprland.lua` | `hyprctl reload` sem erros |
+| 2 | Abrir o app | Janela flutuante centralizada 320×600 (não esticada pelo tiling) |
+| 3 | `hyprctl clients -j` | `size [320, 600]`, `floating: True` |

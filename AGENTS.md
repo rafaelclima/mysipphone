@@ -188,8 +188,48 @@ speakers" use cases.
    WebKitGTK interaction) exploited by compiler optimizations. Workaround: `[profile.release]
    opt-level = 0`. Investigate pjsip FFI struct layout, C helper pointer semantics, or
    WebKitGTK threading model for UB source.
+   **Validated 2026-08**: `opt-level = 0` release build runs stable on
+   Omarchy/Arch (Hyprland, AMD Baffin) — SIP registration, calls and audio OK
+   over multiple sessions.
 
 ## Omarchy / Arch Linux Debug (EGL crash + PipeWire Audio)
+
+### Resolution (confirmed on Omarchy + AMD Baffin, 2026-08)
+
+**EGL crash root cause CONFIRMED**: the AppImage bundles a WebKitGTK compiled
+for Ubuntu 24.04. On Arch/Omarchy the bundled WebKit aborts in
+`WebKitWebProcess` with `Could not create default EGL display: EGL_BAD_PARAMETER.
+Aborting...` (window goes blank; main process later dies with SIGBUS). The
+system WebKit2GTK (2.52.5) works perfectly — proven with a minimal C WebKit app
+and with the full app.
+
+**Fixes (validated on the Omarchy machine):**
+1. **Native build (recommended)** — `cargo build --release` (with
+   `PKG_CONFIG_PATH` pointing at `pjsip-dist/lib/pkgconfig`). The native binary
+   links the system WebKit2GTK 4.1 directly; no `WEBKIT_DISABLE_DMABUF_RENDERER`
+   needed. Release profile uses `opt-level = 0` (Known Issue #1 workaround).
+2. **AppImage without recompiling** — extract and run with system libraries so
+   the bundled WebKit is skipped:
+   ```bash
+   ./mySIPPhone_0.1.3_amd64.AppImage --appimage-extract
+   LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone \
+     ./squashfs-root/usr/bin/mysipphone
+   ```
+   Window renders correctly; SIP/audio unaffected.
+3. **Hyprland window rule** — the app is 320×600 with `decorations: false`; on
+   tiling WMs it gets stretched. Omarchy (Lua config):
+   ```lua
+   o.window("mysipphone", { float = true, center = true, size = { 320, 600 } })
+   ```
+
+**Audio on the test machine**: 15 devices enumerated correctly through
+PipeWire's ALSA layer (all channels/rates nonzero); `pipewire-alsa` was
+installed. The "all zeros" failure mode below is specific to missing
+`pipewire-alsa`.
+
+**Remaining work**: `scripts/setup-arch.sh` still downloads the AppImage (which
+crashes on Omarchy) — should be updated to a native-build flow (install tauri-cli
++ `./scripts/install.sh`).
 
 ### Problem
 Two separate failures on Arch-based distros with Wayland + PipeWire:

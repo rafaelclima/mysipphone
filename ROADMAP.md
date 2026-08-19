@@ -147,3 +147,30 @@ Comprehensive audit via voip-auditor agent (28 findings) + remediation roadmap v
 - [x] i18n keys added: `dialer.call`, `dialer.backspace`, `call.hangup` (EN + PT-BR)
 - [x] Release build fix: `[profile.release] opt-level = 0` (workaround for pjsip UB crash)
 - [x] Install script fix: `cargo tauri build` instead of `cargo build --release`
+
+---
+
+## M10 — Independent Capture/Playback Audio Devices (done)
+Separate Speaker and Microphone selectors routed via `pjsua_set_snd_dev(capture, playback)`.
+- [x] `shared::AudioDevice` gains `input_count`/`output_count`/`default_samples_per_sec`
+- [x] `shared::AudioDeviceType::FullDuplex` (pjsip devices are full-duplex)
+- [x] `SOUND_DEV_ID` stores `(capture, playback)` pair (bugfix: playback index was discarded)
+- [x] localStorage persistence + re-apply on first mount (stale IDs cleared)
+- [x] Details in AGENTS.md → M10
+
+---
+
+## M11 — Arch/Omarchy EGL Crash: Root Cause + Native Build Fix (done)
+The AppImage bundles a WebKitGTK compiled for Ubuntu that aborts on Arch/Omarchy
+(AMD GPU) with `Could not create default EGL display: EGL_BAD_PARAMETER` — blank
+window, main process dies with SIGBUS. Confirmed via core-dump analysis + a
+minimal C WebKit test app.
+- [x] Root cause confirmed: bundled (Ubuntu) WebKit vs system WebKit
+- [x] System WebKit2GTK 4.1 (2.52.5) proven to render correctly
+- [x] Native release build (`opt-level = 0`) linked against system WebKit —
+      runs stable: SIP UDP :5060, 15 audio devices, no `WEBKIT_DISABLE_DMABUF_RENDERER`
+- [x] AppImage fallback without recompiling:
+      `LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone ./squashfs-root/usr/bin/mysipphone`
+- [x] Hyprland window rule for the phone-sized floating window (320×600, centered)
+- [ ] `scripts/setup-arch.sh` migrated from AppImage download to native build
+      (install tauri-cli + `./scripts/install.sh`)

@@ -60,14 +60,44 @@ chmod +x mySIPPhone_*.AppImage
 
 ### Arch Linux / Omarchy / Manjaro
 
+> ⚠️ **AppImage no Omarchy/Arch**: o AppImage oficial empacota um WebKitGTK
+> compilado para Ubuntu que **aborta no Omarchy/Arch** (especialmente com GPU
+> AMD) com `Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...`
+> — a janela abre em branco. A solução comprovada é **compilar do código-fonte**:
+> o binário nativo usa o WebKit2GTK 4.1 do próprio sistema (validado com 2.52.5).
+
 ```bash
-sudo pacman -S --needed webkit2gtk-4.1
+# 1. Dependências do sistema
+sudo pacman -S --needed webkit2gtk-4.1 base-devel
+
+# 2. Rust + tauri-cli (uma vez por máquina)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+cargo install tauri-cli --locked
+
+# 3. Build nativo + instalação (sem sudo, em ~/.local/)
 git clone https://github.com/rafaelclima/mysipphone.git
 cd mysipphone
-./scripts/setup-arch.sh
+./scripts/install.sh
 ```
 
-O script detecta automaticamente o Hyprland (Wayland) e aplica `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+> `./scripts/setup-arch.sh` (legado) ainda baixa o AppImage e aplica
+> `WEBKIT_DISABLE_DMABUF_RENDERER=1` — útil como diagnóstico, mas no Omarchy o
+> AppImage crasha antes de renderizar. Prefira o build nativo acima.
+
+### Janela em formato celular no Hyprland (Omarchy)
+
+O app é desenhado para 320×600 (`decorations: false`). Se o seu WM empilhar
+janelas por padrão (Hyprland), o tamanho é ignorado. No Omarchy, adicione uma
+regra para manter a janela flutuante, centralizada e no tamanho do aparelho:
+
+```lua
+-- ~/.config/hypr/hyprland.lua (Omarchy: usa o helper o.window)
+o.window("mysipphone", { float = true, center = true, size = { 320, 600 } })
+```
+
+Depois de `hyprctl reload`, o app abre como um "celular" flutuante, independente
+das outras janelas.
 
 ### Compilar do código-fonte
 
@@ -195,6 +225,25 @@ arecord -l        # listar dispositivos de captura
 sudo apt install pipewire-alsa  # se usar PipeWire
 ```
 
+### AppImage abre em branco: `Could not create default EGL display: EGL_BAD_PARAMETER`
+
+O AppImage empacota um WebKitGTK compilado para Ubuntu; em Arch/Omarchy
+(comprovado com GPU AMD Baffin) esse WebKit aborta ao criar o display EGL.
+Soluções, em ordem de preferência:
+
+1. **Compile do código-fonte** (recomendado) — seção *Arch Linux / Omarchy* acima.
+2. **Sem recompilar**: extraia o AppImage e rode o binário com as bibliotecas do
+   sistema para ignorar o WebKit embutido:
+
+```bash
+./mySIPPhone_*.AppImage --appimage-extract
+LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone \
+  ./squashfs-root/usr/bin/mysipphone
+```
+
+3. Diagnóstico: colete o relatório do sistema com
+   `bash scripts/diagnose-arch.sh`.
+
 ### Ícone genérico no menu
 
 ```bash
@@ -301,14 +350,44 @@ chmod +x mySIPPhone_*.AppImage
 
 ### Arch Linux / Omarchy / Manjaro
 
+> ⚠️ **AppImage on Omarchy/Arch**: the official AppImage bundles a WebKitGTK
+> compiled for Ubuntu that **aborts on Omarchy/Arch** (especially with AMD GPUs)
+> with `Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...` —
+> the window opens blank. The proven fix is to **build from source**: the native
+> binary uses the system WebKit2GTK 4.1 (validated with 2.52.5).
+
 ```bash
-sudo pacman -S --needed webkit2gtk-4.1
+# 1. System dependencies
+sudo pacman -S --needed webkit2gtk-4.1 base-devel
+
+# 2. Rust + tauri-cli (once per machine)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+cargo install tauri-cli --locked
+
+# 3. Native build + install (no sudo, into ~/.local/)
 git clone https://github.com/rafaelclima/mysipphone.git
 cd mysipphone
-./scripts/setup-arch.sh
+./scripts/install.sh
 ```
 
-The script auto-detects Hyprland (Wayland) and applies `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+> `./scripts/setup-arch.sh` (legacy) still downloads the AppImage and applies
+> `WEBKIT_DISABLE_DMABUF_RENDERER=1` — useful for diagnostics, but on Omarchy the
+> AppImage crashes before rendering. Prefer the native build above.
+
+### Phone-sized floating window on Hyprland (Omarchy)
+
+The app is designed for 320×600 (`decorations: false`). If your WM tiles
+windows by default (Hyprland), the size is ignored. On Omarchy, add a rule to
+keep the window floating, centered and phone-sized:
+
+```lua
+-- ~/.config/hypr/hyprland.lua (Omarchy: uses the o.window helper)
+o.window("mysipphone", { float = true, center = true, size = { 320, 600 } })
+```
+
+After `hyprctl reload`, the app opens as a floating "phone", independent from
+other windows.
 
 ### Build from source
 
@@ -435,6 +514,24 @@ aplay -l          # list playback devices
 arecord -l        # list capture devices
 sudo apt install pipewire-alsa  # if using PipeWire
 ```
+
+### Blank AppImage window: `Could not create default EGL display: EGL_BAD_PARAMETER`
+
+The AppImage bundles a WebKitGTK compiled for Ubuntu; on Arch/Omarchy (confirmed
+with AMD Baffin GPU) that WebKit aborts when creating the EGL display.
+Solutions, in order of preference:
+
+1. **Build from source** (recommended) — see *Arch Linux / Omarchy* above.
+2. **Without recompiling**: extract the AppImage and run the binary with system
+   libraries so the bundled WebKit is skipped:
+
+```bash
+./mySIPPhone_*.AppImage --appimage-extract
+LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone \
+  ./squashfs-root/usr/bin/mysipphone
+```
+
+3. Diagnostics: collect a system report with `bash scripts/diagnose-arch.sh`.
 
 ### Icon shows generic gear in app menu
 

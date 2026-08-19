@@ -142,3 +142,15 @@ UB → `pjsua_init` returns `PJ_EINVAL` (70004).
 Verify with `cargo test -p pjsip-sys`. If struct sizes change (pjsip update),
 run the C program in `scripts/check_struct_sizes.c` to measure new values.
 
+
+## Packaging & Distribution
+
+| Artefato | Observação |
+|----------|-----------|
+| AppImage / .deb (`build-appimage.sh`) | O AppImage **embute** WebKitGTK/GTK compilados para Ubuntu 24.04 — no Arch/Omarchy o WebKit embutido aborta (`EGL_BAD_PARAMETER`) e a janela abre em branco. O .deb não tem esse problema (usa as libs do sistema). |
+| Build nativo (Arch/Omarchy) | **Forma recomendada no Arch/Omarchy**: `cargo build --release` com `opt-level = 0` (ver Known Issue no AGENTS.md). O binário nativo linka o WebKit2GTK 4.1 do sistema — sem workarounds de runtime. |
+
+O WebView é sempre o WebKit2GTK 4.1 do sistema no build nativo; apenas o
+AppImage tenta empacotar o próprio runtime. Se um dia o AppImage for refeito
+para Arch (ou com WebKit do sistema), o crash de EGL desaparece.
+
