@@ -27,7 +27,7 @@
 |-------|------|--------------------|
 | 1 | Inicie o app | Tela Dialer aparece |
 | 2 | Vá em Settings → toque na linha SIP Account | Navega para AccountSetup |
-| 3 | Preencha Display Name, SIP URI, Registrar, Username, Password | Campos preenchidos |
+| 3 | Preencha Display Name, SIP URI, Registrar, Username, Password — **SIP URI e Registrar exigem o prefixo `sip:`** (ex.: `sip:595@192.168.54.2` e `sip:192.168.54.2`; sem o prefixo o registro falha com `PJSIP_EINVALIDURI` 171039) | Campos preenchidos |
 | 4 | Toque **Register** | Botão desabilita, feedback visual de registro |
 | 5 | Aguarde ~2-5s | Chip no Settings muda para **Registered** (verde) |
 

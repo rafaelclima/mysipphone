@@ -174,3 +174,5 @@ minimal C WebKit test app.
 - [x] Hyprland window rule for the phone-sized floating window (320×600, centered)
 - [ ] `scripts/setup-arch.sh` migrated from AppImage download to native build
       (install tauri-cli + `./scripts/install.sh`)
+- [ ] AccountSetup auto-prefixes `sip:` on SIP URI/Registrar fields (UX fix —
+      bare IPs/extension currently cause `PJSIP_EINVALIDURI` 171039)

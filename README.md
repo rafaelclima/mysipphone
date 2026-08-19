@@ -136,12 +136,17 @@ Sem sudo. Instala em `~/.local/`:
 
 ### Configuração da Conta
 
-| Campo | Exemplo |
-|-------|---------|
-| Ramal | 595 |
-| Domínio da Central | 192.168.54.2 |
-| Usuário | 595 |
-| Senha | sua_senha_sip |
+> ⚠️ **Importante:** os campos **SIP URI** e **Registrar** exigem a **URI
+> completa com o prefixo `sip:`** — não apenas o IP ou o ramal. Preencher sem o
+> prefixo faz o registro falhar com `PJSIP_EINVALIDURI` (171039).
+
+| Campo (tela do app) | Valor esperado | Exemplo |
+|---------------------|----------------|---------|
+| Display Name | Nome exibido | Rafael-TI |
+| SIP URI | `sip:<ramal>@<domínio>` | `sip:595@192.168.54.2` |
+| Registrar | `sip:<domínio>` (mesmo servidor) | `sip:192.168.54.2` |
+| Username | Ramal | 595 |
+| Password | Senha SIP do ramal | sua_senha_sip |
 
 Registro automático na central. Indicador verde na barra de status confirma o registro.
 
@@ -243,6 +248,13 @@ LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone \
 
 3. Diagnóstico: colete o relatório do sistema com
    `bash scripts/diagnose-arch.sh`.
+
+### Registro falha com `PJSIP_EINVALIDURI` (171039)
+
+A conta foi rejeitada por URI inválida — algum campo foi preenchido sem o
+prefixo `sip:` (ou o ramal foi colocado no campo Registrar). Os logs mostram
+`mysip_account_add status=171039`. Verifique **Configuração da Conta** acima:
+SIP URI deve ser `sip:ramal@dominio` e Registrar `sip:dominio`.
 
 ### Ícone genérico no menu
 
@@ -426,12 +438,17 @@ No sudo required. Installs to `~/.local/`:
 
 ### Account Configuration
 
-| Field | Example |
-|-------|---------|
-| Extension | 595 |
-| PBX Domain | 192.168.54.2 |
-| Username | 595 |
-| Password | your_sip_password |
+> ⚠️ **Important:** the **SIP URI** and **Registrar** fields require the **full
+> URI with the `sip:` scheme** — not a bare IP or extension. Filling them
+> without the scheme makes registration fail with `PJSIP_EINVALIDURI` (171039).
+
+| Field (app screen) | Expected value | Example |
+|--------------------|----------------|---------|
+| Display Name | Shown name | Rafael-TI |
+| SIP URI | `sip:<extension>@<domain>` | `sip:595@192.168.54.2` |
+| Registrar | `sip:<domain>` (same server) | `sip:192.168.54.2` |
+| Username | Extension | 595 |
+| Password | Extension SIP password | your_sip_password |
 
 Auto-registers on the PBX. Green indicator in the status bar confirms registration.
 
@@ -532,6 +549,13 @@ LD_LIBRARY_PATH=/usr/lib:./squashfs-root/usr/lib/mysipphone \
 ```
 
 3. Diagnostics: collect a system report with `bash scripts/diagnose-arch.sh`.
+
+### Registration fails with `PJSIP_EINVALIDURI` (171039)
+
+The account was rejected because of an invalid URI — some field was filled
+without the `sip:` scheme (or the extension was put in the Registrar field).
+Logs show `mysip_account_add status=171039`. See **Account Configuration**
+above: SIP URI must be `sip:extension@domain` and Registrar `sip:domain`.
 
 ### Icon shows generic gear in app menu
 

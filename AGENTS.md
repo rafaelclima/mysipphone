@@ -486,6 +486,12 @@ resources/        source assets (mysipphone.png — 500×500 RGBA icon source)
 
 ## Notable Quirks
 - No `opencode.json`, no CI, no `.cargo/config.toml`
+- **AccountSetup sends `sip_uri`/`registrar` raw** — the user must type full
+  `sip:` URIs (`sip:595@192.168.54.2` / `sip:192.168.54.2`). Bare IPs or a bare
+  extension in Registrar → `PJSIP_EINVALIDURI` (171039) at `pjsua_acc_add`
+  (`mysip_account_add` status=171039). `buildSipUri()` exists in
+  `frontend/src/lib/sipUri.ts` but AccountSetup does NOT use it — auto-prefixing
+  the scheme is a pending UX fix.
 - Frontend ESLint is flat config (`eslint.config.js`), not `.eslintrc`
 - Vite runs on port 1420, HMR on 1421
 - `cargo tauri dev` requires GTK3 + WebKit2GTK + libayatana-appindicator3 (system packages)
