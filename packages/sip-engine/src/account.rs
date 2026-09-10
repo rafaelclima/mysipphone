@@ -152,6 +152,11 @@ pub unsafe extern "C" fn rust_on_call_state(
                 INV_STATE_CONFIRMED => {
                     let was_first = set.is_empty();
                     let _ = set.insert(call_id);
+                    // Release the lock BEFORE touching audio: enable_sound
+                    // opens the sound device (bounded, but still blocking),
+                    // and std Mutex is not reentrant — holding it across
+                    // would deadlock any path that locks ACTIVE_CALLS again.
+                    drop(set);
                     if was_first {
                         PjsuaEngine::enable_sound();
                     }
@@ -511,7 +516,7 @@ impl PjsuaEngine {
                     tracing::info!("Switching audio device: capture={}, playback={}", capture_dev, playback_dev);
                     // Bounded: this runs on the command thread, and stalling
                     // it would delay subsequent commands (e.g. Hangup).
-                    match Self::set_snd_dev_bounded(capture_dev, playback_dev, false) {
+                    match Self::set_snd_dev_bounded(capture_dev, playback_dev) {
                         Some(status) if status == PJ_SUCCESS => {
                             tracing::info!("Audio device switched successfully");
                         }
@@ -669,7 +674,7 @@ impl PjsuaEngine {
             if crate::bluetooth::on_call_audio_started() {
                 std::thread::sleep(std::time::Duration::from_millis(1500));
             }
-            match Self::set_snd_dev_bounded(capture, playback, true) {
+            match Self::set_snd_dev_bounded(capture, playback) {
                 Some(status) if status == PJ_SUCCESS => {
                     tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
                 }
@@ -696,20 +701,11 @@ impl PjsuaEngine {
     /// bounded wait: the open runs on a detached thread (ALSA opens on a
     /// churning PipeWire graph can stall for seconds). Returns the pjsua
     /// status on time, or `None` on timeout — in which case a late success is
-    /// still recorded and media reconnected for still-active calls, so a slow
-    /// open degrades to briefly-delayed audio instead of a wedged engine.
-    /// When `reconnect_media` is set, conference media is (re)connected for
-    /// the currently active calls once the device is open.
-    fn set_snd_dev_bounded(capture: c_int, playback: c_int, reconnect_media: bool) -> Option<c_int> {
-        let active: Vec<c_int> = if reconnect_media {
-            ACTIVE_CALLS
-                .get()
-                .and_then(|m| m.lock().ok())
-                .map(|set| set.iter().copied().collect())
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
+    /// still recorded, so a slow open degrades to briefly-delayed audio
+    /// instead of a wedged engine. Re-opening via `pjsua_set_snd_dev`
+    /// preserves the conference wiring, so no manual media reconnect is
+    /// needed here. Takes no Rust locks that a pjsip callback might hold.
+    fn set_snd_dev_bounded(capture: c_int, playback: c_int) -> Option<c_int> {
         crate::bluetooth::run_with_timeout(std::time::Duration::from_secs(4), move || {
             // pjlib aborts (SIGABRT) when called from an unknown thread, so
             // register this detached thread before touching pjsua.
@@ -728,16 +724,6 @@ impl PjsuaEngine {
                 let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
                 if let Ok(mut guard) = store.lock() {
                     *guard = Some((capture, playback));
-                }
-                for cid in &active {
-                    let still_active = ACTIVE_CALLS
-                        .get()
-                        .and_then(|m| m.lock().ok())
-                        .map(|set| set.contains(cid))
-                        .unwrap_or(false);
-                    if still_active {
-                        let _ = unsafe { mysip_call_connect_media(*cid) };
-                    }
                 }
             }
             status
