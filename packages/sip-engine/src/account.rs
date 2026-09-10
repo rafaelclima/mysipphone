@@ -734,6 +734,18 @@ impl PjsuaEngine {
             Vec::new()
         };
         run_with_timeout(std::time::Duration::from_secs(4), move || {
+            // pjlib aborts (SIGABRT) when called from an unknown thread, so
+            // register this detached thread before touching pjsua.
+            let thread_name = CString::new("snd-open").unwrap_or_default();
+            let mut thread_desc: pj_thread_desc = [0i64; PJ_THREAD_DESC_SIZE];
+            let mut thread_handle: *mut std::ffi::c_void = std::ptr::null_mut();
+            let reg = unsafe {
+                pj_thread_register(thread_name.as_ptr(), &mut thread_desc, &mut thread_handle)
+            };
+            if reg != PJ_SUCCESS {
+                tracing::warn!("snd-open thread registration failed: {}", reg);
+                return reg;
+            }
             let status = unsafe { pjsua_set_snd_dev(capture, playback) };
             if status == PJ_SUCCESS {
                 let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
