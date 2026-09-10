@@ -188,6 +188,12 @@ speakers" use cases.
   call ended (`disable_sound`) restores the saved profiles.
 - Runs on detached threads (never blocks pjsip-engine); every failure → warn
   only, the call always proceeds. Already-headset cards are left untouched.
+- `enable_sound` switches synchronously BEFORE `pjsua_set_snd_dev`, sleeps
+  1.5s when a switch just happened (SCO connect), and opens via
+  `set_snd_dev_bounded` (4s timeout, late success still applied + media
+  reconnected) — ALSA opens on a churning PipeWire graph stalled 6s+ in
+  testing, which would wedge pjsip's single worker thread (`thread_cnt = 1`).
+  Same bound on `SetAudioDevice` so a stall can't delay Hangup commands.
 - Override pactl binary via `MYSIPPHONE_PACTL` env var (used by tests with stub).
 - Background: WirePlumber autoswitch only fires on PipeWire-native capture
   streams linked to `bluez_input`; pjsip's ALSA capture doesn't reliably trigger

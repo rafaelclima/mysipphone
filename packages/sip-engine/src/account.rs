@@ -290,6 +290,29 @@ pub unsafe extern "C" fn rust_on_call_media_state(
     }
 }
 
+/// Runs `f` on a detached thread, waiting at most `timeout` for its value.
+/// Returns the value, or `None` on timeout (the thread keeps running to
+/// completion, so `f` must apply any late success itself). Used to keep
+/// ALSA opens — which can stall for seconds on a churning PipeWire graph —
+/// from wedging the pjsip worker or command threads.
+pub(crate) fn run_with_timeout<F, T>(timeout: std::time::Duration, f: F) -> Option<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+    if std::thread::Builder::new()
+        .name("snd-open".into())
+        .spawn(move || {
+            let _ = tx.send(f());
+        })
+        .is_err()
+    {
+        return None;
+    }
+    rx.recv_timeout(timeout).ok()
+}
+
 pub struct PjsuaEngine {
     shutdown_flag: Arc<AtomicBool>,
 }
@@ -509,15 +532,22 @@ impl PjsuaEngine {
                 }
                 Ok(crate::SipCommand::SetAudioDevice(capture_dev, playback_dev)) => {
                     tracing::info!("Switching audio device: capture={}, playback={}", capture_dev, playback_dev);
-                    let status = unsafe { pjsua_set_snd_dev(capture_dev, playback_dev) };
-                    if status == PJ_SUCCESS {
-                        tracing::info!("Audio device switched successfully");
-                        let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
-                        if let Ok(mut guard) = store.lock() {
-                            *guard = Some((capture_dev, playback_dev));
+                    // Bounded: this runs on the command thread, and stalling
+                    // it would delay subsequent commands (e.g. Hangup).
+                    match Self::set_snd_dev_bounded(capture_dev, playback_dev, false) {
+                        Some(status) if status == PJ_SUCCESS => {
+                            tracing::info!("Audio device switched successfully");
                         }
-                    } else {
-                        tracing::warn!("Failed to switch audio device: {}", status);
+                        Some(status) => {
+                            tracing::warn!("Failed to switch audio device: {}", status);
+                        }
+                        None => {
+                            tracing::warn!(
+                                "Audio device switch timed out (capture={}, playback={}); \
+                                 late success still applies",
+                                capture_dev, playback_dev
+                            );
+                        }
                     }
                 }
                 Ok(crate::SipCommand::CreateTlsTransport { port, cert_file, privkey_file, ca_file }) => {
@@ -654,19 +684,75 @@ impl PjsuaEngine {
             // Switch synchronously BEFORE opening: opening the ALSA handles
             // first and switching after leaves pjsip holding handles bound to
             // the vanished A2DP nodes (dead audio in both directions).
-            crate::bluetooth::on_call_audio_started();
-            let status = unsafe { pjsua_set_snd_dev(capture, playback) };
-            if status == PJ_SUCCESS {
-                tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
-            } else {
-                tracing::warn!(
-                    "Failed to enable sound device (capture={}, playback={}): {}",
-                    capture, playback, status
-                );
+            // If a switch just happened, allow SCO a moment to connect:
+            // opening ALSA handles mid-flip blocks or fails (measured: 6s+
+            // read stall with zero bytes), which would wedge pjsip's single
+            // worker thread (thread_cnt = 1 in helpers.c) and with it all
+            // SIP signaling.
+            if crate::bluetooth::on_call_audio_started() {
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+            }
+            match Self::set_snd_dev_bounded(capture, playback, true) {
+                Some(status) if status == PJ_SUCCESS => {
+                    tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
+                }
+                Some(status) => {
+                    tracing::warn!(
+                        "Failed to enable sound device (capture={}, playback={}): {}",
+                        capture, playback, status
+                    );
+                }
+                None => {
+                    tracing::warn!(
+                        "Sound device open timed out (capture={}, playback={}); \
+                         call continues, late success still applies",
+                        capture, playback
+                    );
+                }
             }
         } else {
             tracing::debug!("No sound device stored, keeping null device");
         }
+    }
+
+    /// Opens the pjsip sound device without ever blocking the caller past a
+    /// bounded wait: the open runs on a detached thread (ALSA opens on a
+    /// churning PipeWire graph can stall for seconds). Returns the pjsua
+    /// status on time, or `None` on timeout — in which case a late success is
+    /// still recorded and media reconnected for still-active calls, so a slow
+    /// open degrades to briefly-delayed audio instead of a wedged engine.
+    /// When `reconnect_media` is set, conference media is (re)connected for
+    /// the currently active calls once the device is open.
+    fn set_snd_dev_bounded(capture: c_int, playback: c_int, reconnect_media: bool) -> Option<c_int> {
+        let active: Vec<c_int> = if reconnect_media {
+            ACTIVE_CALLS
+                .get()
+                .and_then(|m| m.lock().ok())
+                .map(|set| set.iter().copied().collect())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        run_with_timeout(std::time::Duration::from_secs(4), move || {
+            let status = unsafe { pjsua_set_snd_dev(capture, playback) };
+            if status == PJ_SUCCESS {
+                let store = SOUND_DEV_ID.get_or_init(|| Mutex::new(None));
+                if let Ok(mut guard) = store.lock() {
+                    *guard = Some((capture, playback));
+                }
+                for cid in &active {
+                    let still_active = ACTIVE_CALLS
+                        .get()
+                        .and_then(|m| m.lock().ok())
+                        .map(|set| set.contains(cid))
+                        .unwrap_or(false);
+                    if still_active {
+                        let _ = unsafe { mysip_call_connect_media(*cid) };
+                    }
+                }
+            }
+            status
+        })
     }
 
     fn disable_sound() {
@@ -845,5 +931,29 @@ impl PjsuaEngine {
 
     pub fn shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_with_timeout;
+
+    #[test]
+    fn returns_value_when_fast_enough() {
+        let out = run_with_timeout(std::time::Duration::from_secs(5), || 42);
+        assert_eq!(out, Some(42));
+    }
+
+    #[test]
+    fn times_out_but_lets_the_thread_finish() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let out = run_with_timeout(std::time::Duration::from_millis(50), move || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let _ = tx.send(());
+            7
+        });
+        assert_eq!(out, None);
+        rx.recv_timeout(std::time::Duration::from_secs(5))
+            .expect("late thread runs to completion");
     }
 }

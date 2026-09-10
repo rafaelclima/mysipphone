@@ -71,8 +71,11 @@ pub fn on_call_ringing() {
 
 /// Call entry point: move Bluetooth cards to HSP/HFP now, synchronously.
 /// MUST be called before `pjsua_set_snd_dev` opens the sound device.
-pub fn on_call_audio_started() {
-    switch_all_to_headset();
+/// Returns true if at least one card was actually switched (the caller
+/// should then allow a moment for SCO to connect before opening ALSA
+/// handles — opening mid-flip blocks or fails, leaving dead audio).
+pub fn on_call_audio_started() -> bool {
+    switch_all_to_headset()
 }
 
 /// Call entry point: give Bluetooth cards their pre-call profile back.
@@ -90,8 +93,8 @@ fn pactl_binary() -> String {
     std::env::var("MYSIPPHONE_PACTL").unwrap_or_else(|_| "pactl".to_string())
 }
 
-fn switch_all_to_headset() {
-    switch_all_to_headset_with(&pactl_binary());
+fn switch_all_to_headset() -> bool {
+    switch_all_to_headset_with(&pactl_binary())
 }
 
 fn restore_saved_profiles() {
@@ -214,26 +217,29 @@ pub(crate) fn set_profile(bin: &str, card: &str, profile: &str) -> Result<(), Bl
     run_pactl(bin, &["set-card-profile", card, profile]).map(|_| ())
 }
 
-pub(crate) fn switch_all_to_headset_with(bin: &str) {
+/// Switches every non-headset Bluetooth card to its best headset profile.
+/// Returns true if at least one card was actually switched.
+pub(crate) fn switch_all_to_headset_with(bin: &str) -> bool {
     let cards = match query_cards(bin) {
         Ok(cards) => cards,
         Err(e) => {
             tracing::warn!("Bluetooth profile switch skipped, cannot list cards: {e}");
-            return;
+            return false;
         }
     };
     if cards.is_empty() {
         tracing::debug!("No Bluetooth audio cards found, nothing to switch");
-        return;
+        return false;
     }
     let saved = SAVED_PROFILES.get_or_init(|| Mutex::new(HashMap::new()));
     let mut guard = match saved.lock() {
         Ok(guard) => guard,
         Err(e) => {
             tracing::warn!("Bluetooth profile switch skipped, state lock poisoned: {e}");
-            return;
+            return false;
         }
     };
+    let mut switched_any = false;
     for card in &cards {
         if is_headset_profile(&card.active_profile) {
             tracing::debug!(
@@ -274,8 +280,11 @@ pub(crate) fn switch_all_to_headset_with(bin: &str) {
                 "Bluetooth card {}: no headset profile accepted, microphone may not work",
                 card.name
             );
+        } else {
+            switched_any = true;
         }
     }
+    switched_any
 }
 
 pub(crate) fn restore_saved_profiles_with(bin: &str) {
@@ -433,7 +442,7 @@ mod tests {
         let dir = make_stub("flow", json, "");
         let bin = dir.join("pactl").to_string_lossy().into_owned();
 
-        switch_all_to_headset_with(&bin);
+        assert!(switch_all_to_headset_with(&bin));
         assert_eq!(read_calls(&dir), "bluez_card.00_flow_music headset-head-unit\n");
 
         restore_saved_profiles_with(&bin);
@@ -455,14 +464,23 @@ mod tests {
         let dir = make_stub("text", "this is not json", text);
         let bin = dir.join("pactl").to_string_lossy().into_owned();
 
-        switch_all_to_headset_with(&bin);
-        assert_eq!(
-            read_calls(&dir),
-            "bluez_card.00_flow_text headset-head-unit\n"
-        );
+        assert!(switch_all_to_headset_with(&bin));
+        assert_eq!(read_calls(&dir), "bluez_card.00_flow_text headset-head-unit\n");
 
         restore_saved_profiles_with(&bin);
         assert!(read_calls(&dir).ends_with("bluez_card.00_flow_text a2dp-sink\n"));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // ── Scenario 3: nothing to do when already on headset ──
+        let json = r#"[
+            {"name": "bluez_card.00_flow_done", "active_profile": "headset-head-unit",
+             "profiles": {"headset-head-unit": {}, "off": {}}}
+        ]"#;
+        let dir = make_stub("done", json, "");
+        let bin = dir.join("pactl").to_string_lossy().into_owned();
+
+        assert!(!switch_all_to_headset_with(&bin));
+        assert_eq!(read_calls(&dir), "");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
