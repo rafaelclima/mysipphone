@@ -162,6 +162,12 @@ pub unsafe extern "C" fn rust_on_call_state(
                         PjsuaEngine::disable_sound();
                     }
                 }
+                INV_STATE_INCOMING | INV_STATE_CALLING => {
+                    // Ringing (either direction): give the Bluetooth profile
+                    // switch a head start while the user decides, so HSP/HFP
+                    // is ready if the call is answered.
+                    crate::bluetooth::on_call_ringing();
+                }
                 _ => {}
             }
         }
@@ -645,12 +651,13 @@ impl PjsuaEngine {
             .and_then(|m| m.lock().ok())
             .and_then(|g| *g);
         if let Some((capture, playback)) = dev_pair {
+            // Switch synchronously BEFORE opening: opening the ALSA handles
+            // first and switching after leaves pjsip holding handles bound to
+            // the vanished A2DP nodes (dead audio in both directions).
+            crate::bluetooth::on_call_audio_started();
             let status = unsafe { pjsua_set_snd_dev(capture, playback) };
             if status == PJ_SUCCESS {
                 tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
-                // A Bluetooth headset idles in the music-only A2DP profile;
-                // move it to HSP/HFP now so the headset mic works for this call.
-                crate::bluetooth::on_call_audio_started();
             } else {
                 tracing::warn!(
                     "Failed to enable sound device (capture={}, playback={}): {}",

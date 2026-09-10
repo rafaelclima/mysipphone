@@ -12,13 +12,19 @@
 //! microphone unusable during calls.
 //!
 //! This module restores the expected phone behaviour deterministically:
-//! - [`on_call_audio_started`] (first call answered) saves the current
-//!   profile of every connected Bluetooth audio card and switches it to the
-//!   best headset profile (mSBC `headset-head-unit` first, CVSD fallback).
-//! - [`on_call_audio_stopped`] (last call ended) restores the saved profiles.
+//! - [`on_call_ringing`] (phone ringing, either direction) starts the switch
+//!   early on a detached thread, giving SCO time to connect while the user
+//!   decides to answer.
+//! - [`on_call_audio_started`] (first call answered) switches **synchronously**
+//!   and MUST be called BEFORE `pjsua_set_snd_dev` opens the ALSA handles:
+//!   switching after the open leaves pjsip holding handles bound to the
+//!   vanished A2DP nodes (dead audio in both directions).
+//! - [`on_call_audio_stopped`] (last call ended) restores the saved profiles
+//!   on a detached thread, after the sound device is nulled.
 //!
-//! Both entry points spawn a detached thread so the pjsip engine thread is
-//! never blocked on the `pactl` subprocess. Every failure degrades gracefully
+//! The pjsip engine thread is only ever blocked by the two fast `pactl`
+//! invocations of the synchronous switch (~100-300ms, comparable to the ALSA
+//! open itself). Every failure degrades gracefully
 //! to a `tracing::warn!` — the call itself always proceeds.
 
 use std::collections::HashMap;
@@ -50,15 +56,23 @@ pub(crate) struct BtCard {
     profiles: Vec<String>,
 }
 
-/// Call entry point: move Bluetooth cards to HSP/HFP for the call.
-/// Runs on a detached thread; never blocks the caller.
-pub fn on_call_audio_started() {
+/// Early head start: begin the switch while the phone is still ringing, so
+/// HSP/HFP (and SCO) is more likely ready when the call is answered.
+/// Runs on a detached thread; never blocks the caller. Idempotent: cards
+/// already on a headset profile are left untouched.
+pub fn on_call_ringing() {
     if let Err(e) = std::thread::Builder::new()
-        .name("bt-profile-switch".into())
+        .name("bt-profile-early".into())
         .spawn(switch_all_to_headset)
     {
         tracing::warn!("Could not spawn Bluetooth profile thread: {e}");
     }
+}
+
+/// Call entry point: move Bluetooth cards to HSP/HFP now, synchronously.
+/// MUST be called before `pjsua_set_snd_dev` opens the sound device.
+pub fn on_call_audio_started() {
+    switch_all_to_headset();
 }
 
 /// Call entry point: give Bluetooth cards their pre-call profile back.
