@@ -42,6 +42,8 @@ const HEADSET_CANDIDATES: [&str; 2] = ["headset-head-unit", "headset-head-unit-c
 pub enum BluetoothError {
     #[error("failed to run {0}: {1}")]
     Spawn(String, #[source] std::io::Error),
+    #[error("`{0}` timed out")]
+    Timeout(String),
     #[error("`{0}` exited with status {1}: {2}")]
     Status(String, String, String),
     #[error("failed to parse `{0}` output: {1}")]
@@ -101,12 +103,54 @@ fn restore_saved_profiles() {
     restore_saved_profiles_with(&pactl_binary());
 }
 
+/// Runs `f` on a detached thread, waiting at most `timeout` for its value.
+/// Returns the value, or `None` on timeout (the thread keeps running to
+/// completion). Used to keep subprocess and ALSA calls — which can stall for
+/// seconds on a churning PipeWire graph — from wedging the pjsip worker or
+/// command threads.
+pub(crate) fn run_with_timeout<F, T>(timeout: std::time::Duration, f: F) -> Option<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+    if std::thread::Builder::new()
+        .name("snd-open".into())
+        .spawn(move || {
+            let _ = tx.send(f());
+        })
+        .is_err()
+    {
+        return None;
+    }
+    rx.recv_timeout(timeout).ok()
+}
+
+/// How long a `pactl` invocation may take before it is abandoned. `pactl`
+/// talks to the PipeWire server and can stall while the audio graph churns
+/// (e.g. mid profile-switch) — without a bound it would wedge the pjsip
+/// worker thread that requested the switch.
+const PACTL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
 fn run_pactl(bin: &str, args: &[&str]) -> Result<String, BluetoothError> {
+    run_pactl_with_timeout(bin, args, PACTL_TIMEOUT)
+}
+
+fn run_pactl_with_timeout(
+    bin: &str,
+    args: &[&str],
+    timeout: std::time::Duration,
+) -> Result<String, BluetoothError> {
     let cmd_str = format!("{bin} {}", args.join(" "));
-    let output = Command::new(bin)
-        .args(args)
-        .output()
-        .map_err(|e| BluetoothError::Spawn(cmd_str.clone(), e))?;
+    let bin = bin.to_string();
+    let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    let output = run_with_timeout(timeout, move || {
+        Command::new(&bin).args(&args).output()
+    });
+    let output = match output {
+        None => return Err(BluetoothError::Timeout(cmd_str)),
+        Some(r) => r.map_err(|e| BluetoothError::Spawn(cmd_str.clone(), e))?,
+    };
     if !output.status.success() {
         return Err(BluetoothError::Status(
             cmd_str,
@@ -385,6 +429,29 @@ mod tests {
             headset_candidates(&card),
             vec!["headset-head-unit", "headset-head-unit-cvsd"]
         );
+    }
+
+    #[test]
+    fn pactl_timeout_is_bounded() {
+        let dir = std::env::temp_dir().join(format!("mysip_bt_hang_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("stub dir");
+        let bin = dir.join("pactl");
+        std::fs::write(&bin, "#!/bin/sh\nsleep 30\n").expect("stub script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&bin).expect("meta").permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bin, perms).expect("chmod stub");
+        }
+        let bin = bin.to_string_lossy().into_owned();
+        let start = std::time::Instant::now();
+        let err = run_pactl_with_timeout(&bin, &["-f", "json", "list", "cards"], std::time::Duration::from_millis(200))
+            .expect_err("hung pactl must fail");
+        assert!(start.elapsed() < std::time::Duration::from_secs(10), "must return promptly");
+        assert!(matches!(err, BluetoothError::Timeout(_)), "unexpected: {err:?}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

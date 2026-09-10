@@ -290,29 +290,6 @@ pub unsafe extern "C" fn rust_on_call_media_state(
     }
 }
 
-/// Runs `f` on a detached thread, waiting at most `timeout` for its value.
-/// Returns the value, or `None` on timeout (the thread keeps running to
-/// completion, so `f` must apply any late success itself). Used to keep
-/// ALSA opens — which can stall for seconds on a churning PipeWire graph —
-/// from wedging the pjsip worker or command threads.
-pub(crate) fn run_with_timeout<F, T>(timeout: std::time::Duration, f: F) -> Option<T>
-where
-    F: FnOnce() -> T + Send + 'static,
-    T: Send + 'static,
-{
-    let (tx, rx) = std::sync::mpsc::channel();
-    if std::thread::Builder::new()
-        .name("snd-open".into())
-        .spawn(move || {
-            let _ = tx.send(f());
-        })
-        .is_err()
-    {
-        return None;
-    }
-    rx.recv_timeout(timeout).ok()
-}
-
 pub struct PjsuaEngine {
     shutdown_flag: Arc<AtomicBool>,
 }
@@ -733,7 +710,7 @@ impl PjsuaEngine {
         } else {
             Vec::new()
         };
-        run_with_timeout(std::time::Duration::from_secs(4), move || {
+        crate::bluetooth::run_with_timeout(std::time::Duration::from_secs(4), move || {
             // pjlib aborts (SIGABRT) when called from an unknown thread, so
             // register this detached thread before touching pjsua.
             let thread_name = CString::new("snd-open").unwrap_or_default();
@@ -948,7 +925,7 @@ impl PjsuaEngine {
 
 #[cfg(test)]
 mod tests {
-    use super::run_with_timeout;
+    use crate::bluetooth::run_with_timeout;
 
     #[test]
     fn returns_value_when_fast_enough() {

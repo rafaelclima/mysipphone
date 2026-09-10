@@ -259,6 +259,11 @@ static void c_on_call_state(pjsua_call_id call_id, pjsip_event *e)
     if (pjsua_call_get_info(call_id, &info) == PJ_SUCCESS) {
         fprintf(stderr, "[c_on_call_state] call_id=%d state=%d\n", (int)call_id, info.state);
         rust_on_call_state((int)call_id, info.state);
+    } else {
+        // Never swallow transitions silently: a failed lookup here (e.g. for
+        // a just-destroyed dialog) would otherwise lose call state changes
+        // like DISCONNECTED with zero trace.
+        fprintf(stderr, "[c_on_call_state] call_id=%d get_info FAILED\n", (int)call_id);
     }
 }
 
