@@ -215,6 +215,33 @@ function App() {
       });
       unlistenersRef.current.push(u5);
 
+      // Safety net: the backend always emits CallEnded (and persists the
+      // call_log row) when pjsip reports DISCONNECTED. If the matching
+      // sip:call-state Ended was missed, reconcile here so the UI can never
+      // stay stuck on a dead call. Entry ids look like "call_<id>_<ts>".
+      const u6 = await listen<Record<string, unknown>>("sip:call-log", (event) => {
+        const payload = event.payload as { entry?: { id?: string } };
+        const entryId = payload.entry?.id ?? "";
+        const m = /^call_(\d+)_/.exec(entryId);
+        if (!m) return;
+        const callId = m[1];
+        const existing = useCallStore.getState().calls.find((c) => c.id === callId);
+        if (!existing) return;
+        const wasActive = useCallStore.getState().activeCallId === callId;
+        removeCall(callId);
+        invoke("stop_ringtone").catch(() => setSnack({ open: true, msg: "Falha ao parar ringtone" }));
+        const remaining = useCallStore.getState().calls;
+        if (remaining.length > 0 && wasActive) {
+          navigate(`/call/${remaining[remaining.length - 1].id}`, { replace: true });
+        } else {
+          navigate("/", { replace: true });
+        }
+        if (useCallStore.getState().incomingCall?.id === callId) {
+          setIncomingCall(null);
+        }
+      });
+      unlistenersRef.current.push(u6);
+
       const saved = await invoke<AccountConfig | null>("get_active_account").catch(() => {
         setSnack({ open: true, msg: "Falha ao carregar conta salva" });
         return null;
