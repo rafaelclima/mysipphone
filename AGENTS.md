@@ -181,6 +181,19 @@ speakers" use cases.
     headset, etc.) are cleared from localStorage with a `console.warn`
     and the UI shows the new default.
 
+## Bluetooth Auto Profile Switch (A2DP ↔ HSP/HFP)
+- `packages/sip-engine/src/bluetooth.rs`: on first call answered (`enable_sound`)
+  saves each `bluez_card.*` active profile via `pactl -f json list cards` (text
+  fallback) and switches to `headset-head-unit` (mSBC, CVSD fallback); on last
+  call ended (`disable_sound`) restores the saved profiles.
+- Runs on detached threads (never blocks pjsip-engine); every failure → warn
+  only, the call always proceeds. Already-headset cards are left untouched.
+- Override pactl binary via `MYSIPPHONE_PACTL` env var (used by tests with stub).
+- Background: WirePlumber autoswitch only fires on PipeWire-native capture
+  streams linked to `bluez_input`; pjsip's ALSA capture doesn't reliably trigger
+  it (broke visibly after WirePlumber 0.5.15 → 0.17 with the card stuck in A2DP
+  and endless `Failure in Bluetooth audio transport` errors).
+
 ## Known Issues
 1. **Release SIGSEGV with opt-level >= 1** — Release builds crash with `segfault at 0` (exit 139)
    on COSMIC/Wayland. Crashes after SIP engine starts, on `pjsip-engine` thread. Reproduces even

@@ -648,6 +648,9 @@ impl PjsuaEngine {
             let status = unsafe { pjsua_set_snd_dev(capture, playback) };
             if status == PJ_SUCCESS {
                 tracing::info!("Sound device enabled: capture={}, playback={}", capture, playback);
+                // A Bluetooth headset idles in the music-only A2DP profile;
+                // move it to HSP/HFP now so the headset mic works for this call.
+                crate::bluetooth::on_call_audio_started();
             } else {
                 tracing::warn!(
                     "Failed to enable sound device (capture={}, playback={}): {}",
@@ -662,6 +665,8 @@ impl PjsuaEngine {
     fn disable_sound() {
         unsafe { pjsua_set_null_snd_dev() };
         tracing::info!("Sound device disabled (null device)");
+        // Last call ended: give Bluetooth cards their pre-call profile back.
+        crate::bluetooth::on_call_audio_stopped();
     }
 
     fn make_call_impl(event_tx: &mpsc::Sender<CallEvent>, uri: &str) {

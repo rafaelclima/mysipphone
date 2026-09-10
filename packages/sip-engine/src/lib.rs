@@ -1,4 +1,5 @@
 pub mod account;
+pub mod bluetooth;
 pub mod call;
 pub mod error;
 pub mod events;
